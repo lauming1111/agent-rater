@@ -58,45 +58,6 @@ function formatMaskedPhone(value: string) {
   return `${first}-${second}-${third}xx${last}`;
 }
 
-function mergeAgentsByLinkedin(inputAgents: Agent[], inputExperiences: Record<string, Experience[]>) {
-  const groups = new Map<string, { agent: Agent; ids: string[] }>();
-
-  for (const agent of inputAgents) {
-    const key = normalizeLinkedin(agent.linkedin) || agent.id;
-    const existing = groups.get(key);
-    if (!existing) {
-      groups.set(key, { agent, ids: [agent.id] });
-      continue;
-    }
-
-    existing.ids.push(agent.id);
-
-    const latest = agent.createdAt > existing.agent.createdAt ? agent : existing.agent;
-    const createdAt = new Date(Math.max(existing.agent.createdAt.getTime(), agent.createdAt.getTime()));
-    const tags = filterOutQuickTags(Array.from(new Set([...(existing.agent.tags ?? []), ...(agent.tags ?? [])])));
-
-    existing.agent = {
-      ...latest,
-      createdAt,
-      tags,
-      phoneCountryCode: normalizeCountryCode(latest.phoneCountryCode) || existing.agent.phoneCountryCode || "+1",
-      phone: normalizePhone(latest.phone) || existing.agent.phone,
-    };
-  }
-
-  const mergedAgents: Agent[] = [];
-  const mergedExperiences: Record<string, Experience[]> = {};
-
-  for (const { agent, ids } of groups.values()) {
-    mergedAgents.push(agent);
-    const items = ids.flatMap((id) => inputExperiences[id] || []);
-    items.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-    mergedExperiences[agent.id] = items;
-  }
-
-  return { agents: mergedAgents, experiences: mergedExperiences };
-}
-
 function submissionTags(item: Experience) {
   const tags = new Set<string>(item.tags || []);
   if (item.ghosted) tags.add("Ghosted");
@@ -160,6 +121,7 @@ export default function Home() {
   const [agents, setAgents] = useState<Agent[]>(starterAgents);
   const [search, setSearch] = useState("");
   const [experiences, setExperiences] = useState<Record<string, Experience[]>>(seedExperiences);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [sortOption, setSortOption] = useState<
     "latest" | "rating-desc" | "rating-asc" | "tags-desc" | "name-asc" | "name-desc"
   >("latest");
@@ -252,9 +214,8 @@ export default function Home() {
         }
 
         if (cancelled) return;
-        const merged = mergeAgentsByLinkedin(nextAgents, nextExperiences);
-        setAgents(merged.agents);
-        setExperiences(merged.experiences);
+        setAgents(nextAgents);
+        setExperiences(nextExperiences);
       } catch {
         // Fall back to seeded in-memory data when API is unavailable (e.g. no DynamoDB env vars yet).
       }
@@ -328,15 +289,37 @@ export default function Home() {
     : "rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg";
   const labelClass = isDark ? "text-sm text-slate-200" : "text-sm text-slate-700";
 
+  const selectedAgent = selectedAgentId ? agents.find((agent) => agent.id === selectedAgentId) : undefined;
+  const selectAgentForSubmission = (agent: Agent) => {
+    setSelectedAgentId(agent.id);
+    setSelectedQuickTags([]);
+    setFormData((prev) => ({
+      ...prev,
+      name: agent.name,
+      role: agent.role,
+      location: agent.location === "unknown" ? "" : agent.location,
+      linkedin: agent.linkedin,
+      phoneCountryCode: normalizeCountryCode(agent.phoneCountryCode) || "+1",
+      phone: normalizePhone(agent.phone),
+      tags: (agent.tags ?? []).join(", "),
+      summary: "",
+    }));
+
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!formData.name || !formData.linkedin) return;
+    if (!formData.name) return;
 
     const createdAt = new Date();
     const ratingValue = Number(formData.rating);
     const phoneCountryCode = normalizeCountryCode(formData.phoneCountryCode) || "+1";
     const phone = normalizePhone(formData.phone);
-    const countryRegion = normalizeCountryRegion(formData.location);
+    const locationInput = formData.location.trim();
+    const countryRegion = normalizeCountryRegion(locationInput);
     const focusAreaTags = filterOutQuickTags(
       formData.tags
         .split(",")
@@ -345,10 +328,9 @@ export default function Home() {
     );
     const commentTags = selectedQuickTags;
 
-    const linkedin = formData.linkedin.trim();
-    const existingAgent = agents.find(
-      (agent) => normalizeLinkedin(agent.linkedin) === normalizeLinkedin(linkedin)
-    );
+    const linkedinInput = formData.linkedin.trim();
+    const linkedin = linkedinInput ? normalizeLinkedin(linkedinInput) : "";
+    const existingAgent = selectedAgent;
 
     if (existingAgent) {
       const mergedTags = filterOutQuickTags(
@@ -362,10 +344,11 @@ export default function Home() {
               ...agent,
               name: formData.name.trim() || agent.name,
               role: formData.role.trim() || agent.role,
-              location: agent.location || "--",
+              location: locationInput ? countryRegion : agent.location,
               phoneCountryCode: phone ? phoneCountryCode : agent.phoneCountryCode || "+1",
               phone: phone || agent.phone,
               summary: formData.summary.trim() || agent.summary,
+              linkedin: linkedin || agent.linkedin,
               tags: mergedTags,
               createdAt,
             }
@@ -397,8 +380,8 @@ export default function Home() {
             id: existingAgent.id,
             name: formData.name.trim() || existingAgent.name,
             role: formData.role.trim() || existingAgent.role,
-            location: existingAgent.location,
-            linkedin: existingAgent.linkedin,
+            location: locationInput ? countryRegion : existingAgent.location,
+            linkedin: linkedin || existingAgent.linkedin,
             phoneCountryCode: phone ? phoneCountryCode : undefined,
             phone,
             summary: existingAgent.summary,
@@ -481,6 +464,7 @@ export default function Home() {
       tags: "",
       rating: 5,
     });
+    setSelectedAgentId(null);
     setSelectedQuickTags([]);
   };
 
@@ -560,12 +544,34 @@ export default function Home() {
                 Add an HR agent
               </h2>
             </div>
-            <span
-              className={`rounded-full px-3 py-1 text-xs font-medium ${isDark ? "bg-emerald-900/40 text-emerald-100" : "bg-emerald-50 text-emerald-700"
+            {selectedAgent ? (
+              <div className="flex items-center gap-3">
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-medium ${
+                    isDark ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  Adding submission: {selectedAgent.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAgentId(null)}
+                  className={`text-xs font-semibold underline underline-offset-4 transition ${
+                    isDark ? "text-slate-300 hover:text-slate-100" : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Clear
+                </button>
+              </div>
+            ) : (
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-medium ${
+                  isDark ? "bg-emerald-900/40 text-emerald-100" : "bg-emerald-50 text-emerald-700"
                 }`}
-            >
-              New
-            </span>
+              >
+                New
+              </span>
+            )}
           </div>
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
@@ -607,14 +613,13 @@ export default function Home() {
             </div>
             <div className="space-y-2">
               <label className={labelClass} htmlFor="linkedin">
-                LinkedIn profile *
+                LinkedIn profile
               </label>
               <input
                 id="linkedin"
                 type="url"
                 value={formData.linkedin}
                 onChange={handleInput("linkedin")}
-                required
                 className={inputClass}
                 placeholder="https://www.linkedin.com/in/..."
               />
@@ -953,6 +958,17 @@ export default function Home() {
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => selectAgentForSubmission(agent)}
+                            className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                              isDark
+                                ? "border-slate-700 bg-slate-900 text-slate-200 hover:border-emerald-400 hover:text-emerald-200"
+                                : "border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-300 hover:text-emerald-700"
+                            }`}
+                          >
+                            Add submission
+                          </button>
                           <div
                             className={`rounded-full px-3 py-1 text-xs font-semibold ${isDark ? "bg-slate-800 text-slate-100" : "bg-slate-100 text-slate-800"
                               }`}
@@ -963,8 +979,13 @@ export default function Home() {
                             href={agent.linkedin}
                             target="_blank"
                             rel="noreferrer"
-                            className={`inline-flex items-center gap-2 text-sm font-semibold underline-offset-4 transition ${isDark ? "text-emerald-200 hover:text-emerald-100" : "text-emerald-700 hover:text-emerald-800"
-                              }`}
+                            className={
+                              agent.linkedin
+                                ? `inline-flex items-center gap-2 text-sm font-semibold underline-offset-4 transition ${
+                                    isDark ? "text-emerald-200 hover:text-emerald-100" : "text-emerald-700 hover:text-emerald-800"
+                                  }`
+                                : "hidden"
+                            }
                           >
                             View LinkedIn
                             <span aria-hidden>↗</span>

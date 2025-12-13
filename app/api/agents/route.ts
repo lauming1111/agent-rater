@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import {
   addExperience,
   createAgentWithInitialExperience,
-  findAgentIdByLinkedin,
   getAgentProfile,
   listAgentsWithExperiences,
   putAgentProfile,
@@ -70,12 +69,14 @@ export async function POST(req: Request) {
   const normalizeLinkedin = (value: string) => value.trim().toLowerCase().replace(/\/+$/, "");
 
   const name = typeof input.name === "string" ? input.name.trim() : "";
+  if (!name) return jsonError(400, "Missing name");
+
+  const idInput = typeof input.id === "string" && input.id.trim() ? input.id.trim() : "";
+  const id = idInput || crypto.randomUUID();
+
   const linkedinRaw = typeof input.linkedin === "string" ? input.linkedin.trim() : "";
   const linkedin = linkedinRaw ? normalizeLinkedin(linkedinRaw) : "";
-  if (!name) return jsonError(400, "Missing name");
-  if (!linkedin) return jsonError(400, "Missing linkedin");
 
-  const id = (typeof input.id === "string" && input.id.trim()) || crypto.randomUUID();
   const createdAt = (typeof input.createdAt === "string" && input.createdAt) || new Date().toISOString();
 
   const tags =
@@ -97,9 +98,12 @@ export async function POST(req: Request) {
             .filter(Boolean)
         : [];
 
-  const role = typeof input.role === "string" && input.role.trim() ? input.role.trim() : "HR Agent";
-  const location = typeof input.location === "string" && input.location.trim() ? input.location.trim() : "Unknown";
-  const summary = typeof input.summary === "string" && input.summary.trim() ? input.summary.trim() : "No summary yet.";
+  const roleInput = typeof input.role === "string" ? input.role.trim() : "";
+  const locationInput = typeof input.location === "string" ? input.location.trim() : "";
+  const summaryInput = typeof input.summary === "string" ? input.summary.trim() : "";
+  const role = roleInput || "HR Agent";
+  const location = locationInput || "Unknown";
+  const summary = summaryInput || "No summary yet.";
   const phoneCountryCode =
     typeof input.phoneCountryCode === "string" ? normalizeCountryCode(input.phoneCountryCode) : "";
   const phone = typeof input.phone === "string" ? normalizePhone(input.phone) : "";
@@ -123,58 +127,68 @@ export async function POST(req: Request) {
       : undefined;
 
   try {
-    const existingId = await findAgentIdByLinkedin(linkedin);
-    if (existingId) {
-      const profile = await getAgentProfile(existingId);
-      let responseTags = tags;
-      let responsePhone = phone;
-      let responsePhoneCountryCode = phoneCountryCode;
+    const resolvedPhoneCountryCode = phoneCountryCode || "+1";
+
+    if (idInput) {
+      const profile = await getAgentProfile(id);
       if (profile) {
         const mergedTags = Array.from(new Set([...(profile.tags ?? []), ...tags]));
-        responseTags = mergedTags;
-        responsePhone = phone || profile.phone;
-        responsePhoneCountryCode = phoneCountryCode || profile.phoneCountryCode || "+1";
+        const resolvedPhone = phone || profile.phone;
+        const resolvedLinkedin = linkedin || profile.linkedin || "";
+        const resolvedRole = roleInput || profile.role || role;
+        const resolvedLocation = locationInput || profile.location || location;
+        const resolvedSummary = summaryInput || profile.summary || summary;
+        const resolvedPhoneCountryCodeValue = phone ? resolvedPhoneCountryCode : profile.phoneCountryCode || "+1";
+
         await putAgentProfile({
           ...profile,
           name,
-          role,
-          location,
-          linkedin,
-          phoneCountryCode: responsePhoneCountryCode,
-          phone: responsePhone,
-          summary,
+          role: resolvedRole,
+          location: resolvedLocation,
+          linkedin: resolvedLinkedin,
+          phoneCountryCode: resolvedPhoneCountryCodeValue,
+          phone: resolvedPhone,
+          summary: resolvedSummary,
           tags: mergedTags,
           createdAt,
         });
-      }
 
-      if (experience) {
-        await addExperience(existingId, experience);
-      }
+        if (experience) await addExperience(id, experience);
 
-      return NextResponse.json(
-        {
-          agent: {
-            id: existingId,
-            name,
-            role,
-            location,
-            linkedin,
-            phoneCountryCode: responsePhoneCountryCode || "+1",
-            phone: responsePhone,
-            summary,
-            tags: responseTags,
-            createdAt,
+        return NextResponse.json(
+          {
+            agent: {
+              id,
+              name,
+              role: resolvedRole,
+              location: resolvedLocation,
+              linkedin: resolvedLinkedin,
+              phoneCountryCode: resolvedPhoneCountryCodeValue,
+              phone: resolvedPhone,
+              summary: resolvedSummary,
+              tags: mergedTags,
+              createdAt,
+            },
+            experience,
           },
-          experience,
-        },
-        { status: 200 }
-      );
+          { status: 200 }
+        );
+      }
     }
 
-    const resolvedPhoneCountryCode = phoneCountryCode || "+1";
     const res = await createAgentWithInitialExperience({
-      agent: { id, name, role, location, linkedin, phoneCountryCode: resolvedPhoneCountryCode, phone, summary, tags, createdAt },
+      agent: {
+        id,
+        name,
+        role,
+        location,
+        linkedin,
+        phoneCountryCode: resolvedPhoneCountryCode,
+        phone,
+        summary,
+        tags,
+        createdAt,
+      },
       experience,
     });
 
