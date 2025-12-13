@@ -27,6 +27,10 @@ function normalizeLinkedin(value: string) {
   return value.trim().toLowerCase().replace(/\/+$/, "");
 }
 
+function normalizeTag(value: string) {
+  return value.trim().toLowerCase();
+}
+
 function mergeAgentsByLinkedin(inputAgents: Agent[], inputExperiences: Record<string, Experience[]>) {
   const groups = new Map<string, { agent: Agent; ids: string[] }>();
 
@@ -42,7 +46,7 @@ function mergeAgentsByLinkedin(inputAgents: Agent[], inputExperiences: Record<st
 
     const latest = agent.createdAt > existing.agent.createdAt ? agent : existing.agent;
     const createdAt = new Date(Math.max(existing.agent.createdAt.getTime(), agent.createdAt.getTime()));
-    const tags = Array.from(new Set([...(existing.agent.tags ?? []), ...(agent.tags ?? [])]));
+    const tags = filterOutQuickTags(Array.from(new Set([...(existing.agent.tags ?? []), ...(agent.tags ?? [])])));
 
     existing.agent = { ...latest, createdAt, tags };
   }
@@ -78,8 +82,20 @@ function tagCountsFor(items: Experience[]) {
   return counts;
 }
 
-function tagVoteCountFor(items: Experience[]) {
+function quickTagCountsFor(items: Experience[], quickTags: string[]) {
+  const allowed = new Set(quickTags.map((tag) => tag.toLowerCase()));
   const counts = tagCountsFor(items);
+  const filtered: Record<string, number> = {};
+
+  for (const [tag, count] of Object.entries(counts)) {
+    if (allowed.has(tag.toLowerCase())) filtered[tag] = count;
+  }
+
+  return filtered;
+}
+
+function quickTagVoteCountFor(items: Experience[], quickTags: string[]) {
+  const counts = quickTagCountsFor(items, quickTags);
   return Object.values(counts).reduce((sum, value) => sum + value, 0);
 }
 
@@ -89,6 +105,15 @@ const starterAgents: Agent[] = [
 const seedExperiences: Record<string, Experience[]> = {};
 
 const quickTags = ["Ghosted", "Resume taker", "Slow response", "Good experience", "Got interview/job"];
+const quickTagSet = new Set(quickTags.map(normalizeTag));
+
+function filterQuickTags(tags: string[]) {
+  return tags.filter((tag) => quickTagSet.has(normalizeTag(tag)));
+}
+
+function filterOutQuickTags(tags: string[]) {
+  return tags.filter((tag) => !quickTagSet.has(normalizeTag(tag)));
+}
 
 export default function Home() {
   const [agents, setAgents] = useState<Agent[]>(starterAgents);
@@ -158,7 +183,7 @@ export default function Home() {
           location: agent.location,
           linkedin: agent.linkedin,
           summary: agent.summary,
-          tags: Array.isArray(agent.tags) ? agent.tags : [],
+          tags: Array.isArray(agent.tags) ? filterOutQuickTags(agent.tags) : [],
           createdAt: safeDate(agent.createdAt),
         }));
 
@@ -259,15 +284,13 @@ export default function Home() {
 
     const createdAt = new Date();
     const ratingValue = Number(formData.rating);
-    const submittedTags = Array.from(
-      new Set([
-        ...selectedQuickTags,
-        ...formData.tags
-          .split(",")
-          .map((tag) => tag.trim())
-          .filter(Boolean),
-      ])
+    const focusAreaTags = filterOutQuickTags(
+      formData.tags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean)
     );
+    const commentTags = selectedQuickTags;
 
     const linkedin = formData.linkedin.trim();
     const existingAgent = agents.find(
@@ -275,7 +298,9 @@ export default function Home() {
     );
 
     if (existingAgent) {
-      const mergedTags = Array.from(new Set([...(existingAgent.tags ?? []), ...submittedTags]));
+      const mergedTags = filterOutQuickTags(
+        Array.from(new Set([...(existingAgent.tags ?? []), ...focusAreaTags]))
+      );
 
       setAgents((prev) =>
         prev.map((agent) =>
@@ -297,7 +322,7 @@ export default function Home() {
         const experience: Experience = {
           rating: ratingValue,
           notes: formData.summary.trim(),
-          tags: submittedTags,
+          tags: commentTags,
           ghosted: false,
           fakeJob: false,
           noResponse: false,
@@ -315,7 +340,7 @@ export default function Home() {
           body: JSON.stringify({
             rating: ratingValue,
             notes: formData.summary.trim(),
-            tags: submittedTags,
+            tags: commentTags,
             ghosted: false,
             fakeJob: false,
             noResponse: false,
@@ -334,7 +359,7 @@ export default function Home() {
         location: formData.location.trim() || "—",
         linkedin,
         summary: formData.summary.trim() || "No summary yet.",
-        tags: submittedTags,
+        tags: focusAreaTags,
         createdAt,
       };
       setAgents((prev) => [nextAgent, ...prev]);
@@ -343,7 +368,7 @@ export default function Home() {
         const firstExperience: Experience = {
           rating: ratingValue,
           notes: formData.summary.trim(),
-          tags: submittedTags,
+          tags: commentTags,
           ghosted: false,
           fakeJob: false,
           noResponse: false,
@@ -368,6 +393,7 @@ export default function Home() {
           tags: nextAgent.tags,
           rating: ratingValue,
           notes: formData.summary.trim(),
+          experienceTags: commentTags,
           createdAt: createdAt.toISOString(),
         }),
       }).catch(() => {
@@ -398,8 +424,8 @@ export default function Home() {
     list.sort((a, b) => {
       const aAvg = averageRating(experiences[a.id] || []);
       const bAvg = averageRating(experiences[b.id] || []);
-      const aTagVotes = tagVoteCountFor(experiences[a.id] || []);
-      const bTagVotes = tagVoteCountFor(experiences[b.id] || []);
+      const aTagVotes = quickTagVoteCountFor(experiences[a.id] || [], quickTags);
+      const bTagVotes = quickTagVoteCountFor(experiences[b.id] || [], quickTags);
       if (sortOption === "latest") return b.createdAt.getTime() - a.createdAt.getTime();
       if (sortOption === "tags-desc") return bTagVotes - aTagVotes || b.createdAt.getTime() - a.createdAt.getTime();
       if (sortOption === "rating-desc") return bAvg - aAvg || a.name.localeCompare(b.name);
@@ -566,7 +592,7 @@ export default function Home() {
               </p>
             </div>
             <div className="space-y-2">
-              <label className={labelClass} htmlFor="tags">
+              <label className={labelClass} htmlFor="areatags">
                 Focus areas (comma separated)
               </label>
               <input
@@ -698,11 +724,12 @@ export default function Home() {
             {sortedAgents.map((agent) => {
               const entries = experiences[agent.id] || [];
               const avg = averageRating(entries);
-              const tagCounts = tagCountsFor(entries);
+              const tagCounts = quickTagCountsFor(entries, quickTags);
               const tagPairs = Object.entries(tagCounts).sort(
                 (a, b) => b[1] - a[1] || a[0].localeCompare(b[0])
               );
               const tagVotes = tagPairs.reduce((sum, [, count]) => sum + count, 0);
+              const areaTags = filterOutQuickTags(agent.tags || []);
               const initials =
                 agent.name
                   .split(" ")
@@ -737,11 +764,34 @@ export default function Home() {
                               {agent.role || "HR Agent"}
                             </span>
                           </div>
-                          {tagPairs.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {tagPairs.slice(0, 6).map(([tag, count]) => (
+                          {areaTags.length > 0 && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <span
+                                className={`text-[10px] font-semibold uppercase tracking-wide ${
+                                  isDark ? "text-slate-400" : "text-slate-500"
+                                }`}
+                              >
+                                Focus areas
+                              </span>
+                              {areaTags.map((tag) => (
                                 <span key={tag} className={chipClass}>
-                                  {tag} ({count})
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {tagPairs.length > 0 && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <span
+                                className={`text-[10px] font-semibold uppercase tracking-wide ${
+                                  isDark ? "text-slate-400" : "text-slate-500"
+                                }`}
+                              >
+                                Quick tags
+                              </span>
+                              {tagPairs.slice(0, 8).map(([tag, count]) => (
+                                <span key={tag} className={chipClass}>
+                                  {tag} x{count}
                                 </span>
                               ))}
                             </div>
@@ -807,12 +857,12 @@ export default function Home() {
                             <p className={`mt-1 text-sm ${isDark ? "text-slate-100" : "text-slate-800"}`}>
                               {entry.notes || "No additional notes provided."}
                             </p>
-                            {submissionTags(entry).length > 0 && (
+                            {filterQuickTags(submissionTags(entry)).length > 0 && (
                               <div
                                 className={`mt-2 flex flex-wrap gap-2 text-xs ${isDark ? "text-slate-400" : "text-slate-600"
                                   }`}
                               >
-                                {submissionTags(entry).map((tag) => (
+                                {filterQuickTags(submissionTags(entry)).map((tag) => (
                                   <span
                                     key={tag}
                                     className={`rounded-full px-2 py-1 ${isDark ? "bg-slate-800" : "bg-slate-100"}`}
