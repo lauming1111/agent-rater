@@ -24,6 +24,10 @@ function normalizePhone(value: string) {
   return digits;
 }
 
+function normalizeName(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 function normalizeCountryCode(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 3);
   return digits ? `+${digits}` : "";
@@ -68,7 +72,7 @@ export async function POST(req: Request) {
 
   const normalizeLinkedin = (value: string) => value.trim().toLowerCase().replace(/\/+$/, "");
 
-  const name = typeof input.name === "string" ? input.name.trim() : "";
+  const name = typeof input.name === "string" ? normalizeName(input.name) : "";
   if (!name) return jsonError(400, "Missing name");
 
   const idInput = typeof input.id === "string" && input.id.trim() ? input.id.trim() : "";

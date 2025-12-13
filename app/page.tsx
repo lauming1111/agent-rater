@@ -34,6 +34,26 @@ function normalizeTag(value: string) {
   return value.trim().toLowerCase();
 }
 
+function normalizeName(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function formatDisplayName(value: string) {
+  const normalized = normalizeName(value);
+  if (!normalized) return "";
+
+  const titleCaseSegment = (segment: string) =>
+    segment
+      .split("'")
+      .map((part) => (part ? part[0]!.toUpperCase() + part.slice(1) : ""))
+      .join("'");
+
+  return normalized
+    .split(" ")
+    .map((word) => word.split("-").map(titleCaseSegment).join("-"))
+    .join(" ");
+}
+
 function normalizePhone(value: string) {
   const digits = value.replace(/\D/g, "");
   if (!digits) return "";
@@ -186,7 +206,7 @@ export default function Home() {
 
         const nextAgents: Agent[] = data.agents.map((agent) => ({
           id: agent.id,
-          name: agent.name,
+          name: normalizeName(agent.name),
           role: agent.role,
           location: agent.location,
           linkedin: agent.linkedin,
@@ -295,7 +315,7 @@ export default function Home() {
     setSelectedQuickTags([]);
     setFormData((prev) => ({
       ...prev,
-      name: agent.name,
+      name: formatDisplayName(agent.name),
       role: agent.role,
       location: agent.location === "unknown" ? "" : agent.location,
       linkedin: agent.linkedin,
@@ -312,7 +332,8 @@ export default function Home() {
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!formData.name) return;
+    const name = normalizeName(formData.name);
+    if (!name) return;
 
     const createdAt = new Date();
     const ratingValue = Number(formData.rating);
@@ -342,7 +363,7 @@ export default function Home() {
           agent.id === existingAgent.id
             ? {
               ...agent,
-              name: formData.name.trim() || agent.name,
+              name,
               role: formData.role.trim() || agent.role,
               location: locationInput ? countryRegion : agent.location,
               phoneCountryCode: phone ? phoneCountryCode : agent.phoneCountryCode || "+1",
@@ -378,7 +399,7 @@ export default function Home() {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             id: existingAgent.id,
-            name: formData.name.trim() || existingAgent.name,
+            name,
             role: formData.role.trim() || existingAgent.role,
             location: locationInput ? countryRegion : existingAgent.location,
             linkedin: linkedin || existingAgent.linkedin,
@@ -400,7 +421,7 @@ export default function Home() {
       const agentId = crypto.randomUUID();
       const nextAgent: Agent = {
         id: agentId,
-        name: formData.name.trim(),
+        name,
         role: formData.role.trim() || "HR Agent",
         location: countryRegion,
         linkedin,
@@ -432,13 +453,13 @@ export default function Home() {
       void fetch("/api/agents", {
         method: "POST",
         headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            id: nextAgent.id,
-            name: nextAgent.name,
-            role: nextAgent.role,
-            location: nextAgent.location,
-            linkedin: nextAgent.linkedin,
-            phoneCountryCode: nextAgent.phoneCountryCode,
+        body: JSON.stringify({
+          id: nextAgent.id,
+          name: nextAgent.name,
+          role: nextAgent.role,
+          location: nextAgent.location,
+          linkedin: nextAgent.linkedin,
+          phoneCountryCode: nextAgent.phoneCountryCode,
             phone: nextAgent.phone,
             summary: nextAgent.summary,
             tags: nextAgent.tags,
@@ -551,7 +572,7 @@ export default function Home() {
                     isDark ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-700"
                   }`}
                 >
-                  Adding submission: {selectedAgent.name}
+                  Adding submission: {formatDisplayName(selectedAgent.name)}
                 </span>
                 <button
                   type="button"
@@ -880,7 +901,7 @@ export default function Home() {
                               className={`text-lg font-semibold ${isDark ? "text-slate-50" : "text-slate-900"
                                 }`}
                             >
-                              {agent.name}
+                              {formatDisplayName(agent.name)}
                             </h3>
                             <span
                               className={`rounded-full px-3 py-1 text-xs font-semibold ${isDark ? "bg-emerald-900/40 text-emerald-100" : "bg-emerald-50 text-emerald-700"
