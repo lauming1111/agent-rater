@@ -222,20 +222,20 @@ export default function Home() {
 
   return (
     <div className={`min-h-screen ${pageBg}`}>
+      <div className="flex justify-end px-4 pt-6 sm:px-6 lg:px-10">
+        <button
+          type="button"
+          onClick={() => setTheme(isDark ? "light" : "dark")}
+          className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${
+            isDark
+              ? "border-slate-700 bg-slate-800 text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
+              : "border-slate-200 bg-slate-50 text-slate-800 hover:border-emerald-300 hover:text-emerald-700"
+          }`}
+        >
+          {isDark ? "Switch to light mode" : "Switch to dark mode"}
+        </button>
+      </div>
       <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-12 sm:gap-10 sm:px-6 lg:px-8">
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => setTheme(isDark ? "light" : "dark")}
-            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${
-              isDark
-                ? "border-slate-700 bg-slate-800 text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
-                : "border-slate-200 bg-slate-50 text-slate-800 hover:border-emerald-300 hover:text-emerald-700"
-            }`}
-          >
-            {isDark ? "Switch to light mode" : "Switch to dark mode"}
-          </button>
-        </div>
         <header className={`${panelClass} p-8`}>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-500">HR Agent Directory</p>
           <h1
