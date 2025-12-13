@@ -8,6 +8,8 @@ type Agent = {
   role: string;
   location: string;
   linkedin: string;
+  phoneCountryCode: string;
+  phone: string;
   summary: string;
   tags: string[];
   createdAt: Date;
@@ -32,6 +34,30 @@ function normalizeTag(value: string) {
   return value.trim().toLowerCase();
 }
 
+function normalizePhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.length === 11 && digits.startsWith("1")) return digits.slice(1);
+  if (digits.length > 10) return digits.slice(-10);
+  if (digits.length < 10) return "";
+  return digits;
+}
+
+function normalizeCountryCode(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 3);
+  return digits ? `+${digits}` : "";
+}
+
+function formatMaskedPhone(value: string) {
+  const digits = normalizePhone(value);
+  if (digits.length !== 10) return "";
+  const first = digits.slice(0, 3);
+  const second = digits.slice(3, 6);
+  const third = digits.slice(6, 7);
+  const last = digits.slice(9, 10);
+  return `${first}-${second}-${third}xx${last}`;
+}
+
 function mergeAgentsByLinkedin(inputAgents: Agent[], inputExperiences: Record<string, Experience[]>) {
   const groups = new Map<string, { agent: Agent; ids: string[] }>();
 
@@ -49,7 +75,13 @@ function mergeAgentsByLinkedin(inputAgents: Agent[], inputExperiences: Record<st
     const createdAt = new Date(Math.max(existing.agent.createdAt.getTime(), agent.createdAt.getTime()));
     const tags = filterOutQuickTags(Array.from(new Set([...(existing.agent.tags ?? []), ...(agent.tags ?? [])])));
 
-    existing.agent = { ...latest, createdAt, tags };
+    existing.agent = {
+      ...latest,
+      createdAt,
+      tags,
+      phoneCountryCode: normalizeCountryCode(latest.phoneCountryCode) || existing.agent.phoneCountryCode || "+1",
+      phone: normalizePhone(latest.phone) || existing.agent.phone,
+    };
   }
 
   const mergedAgents: Agent[] = [];
@@ -138,6 +170,8 @@ export default function Home() {
     role: "",
     location: "",
     linkedin: "",
+    phoneCountryCode: "+1",
+    phone: "",
     summary: "",
     tags: "",
     rating: 5,
@@ -165,6 +199,8 @@ export default function Home() {
             role: string;
             location: string;
             linkedin: string;
+            phoneCountryCode?: string;
+            phone?: string;
             summary: string;
             tags: string[];
             createdAt: string;
@@ -192,6 +228,8 @@ export default function Home() {
           role: agent.role,
           location: agent.location,
           linkedin: agent.linkedin,
+          phoneCountryCode: normalizeCountryCode(agent.phoneCountryCode ?? "+1") || "+1",
+          phone: normalizePhone(typeof agent.phone === "string" ? agent.phone : ""),
           summary: agent.summary,
           tags: Array.isArray(agent.tags) ? filterOutQuickTags(agent.tags) : [],
           createdAt: safeDate(agent.createdAt),
@@ -249,7 +287,7 @@ export default function Home() {
     const term = search.toLowerCase();
     if (!term) return agents;
     return agents.filter((agent) =>
-      [agent.name, agent.role, agent.location, agent.summary, agent.tags.join(" ")]
+      [agent.name, agent.role, agent.location, agent.summary, agent.tags.join(" "), agent.phone]
         .join(" ")
         .toLowerCase()
         .includes(term)
@@ -257,7 +295,7 @@ export default function Home() {
   }, [agents, search]);
 
   const handleInput =
-    (key: "name" | "role" | "location" | "linkedin" | "summary" | "tags") =>
+    (key: "name" | "role" | "location" | "linkedin" | "phoneCountryCode" | "phone" | "summary" | "tags") =>
       (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setFormData((prev) => ({ ...prev, [key]: e.target.value }));
       };
@@ -278,9 +316,10 @@ export default function Home() {
   const panelClass = isDark
     ? "rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-lg shadow-black/40"
     : "rounded-3xl border border-slate-200 bg-white p-6 shadow-sm";
-  const inputClass = isDark
-    ? "w-full rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-emerald-400 focus:bg-slate-900"
-    : "w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:bg-white";
+  const inputBaseClass = isDark
+    ? "rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-emerald-400 focus:bg-slate-900"
+    : "rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:bg-white";
+  const inputClass = `w-full ${inputBaseClass}`;
   const chipClass = isDark
     ? "rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-100"
     : "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700";
@@ -295,6 +334,8 @@ export default function Home() {
 
     const createdAt = new Date();
     const ratingValue = Number(formData.rating);
+    const phoneCountryCode = normalizeCountryCode(formData.phoneCountryCode) || "+1";
+    const phone = normalizePhone(formData.phone);
     const countryRegion = normalizeCountryRegion(formData.location);
     const focusAreaTags = filterOutQuickTags(
       formData.tags
@@ -322,6 +363,8 @@ export default function Home() {
               name: formData.name.trim() || agent.name,
               role: formData.role.trim() || agent.role,
               location: agent.location || "--",
+              phoneCountryCode: phone ? phoneCountryCode : agent.phoneCountryCode || "+1",
+              phone: phone || agent.phone,
               summary: formData.summary.trim() || agent.summary,
               tags: mergedTags,
               createdAt,
@@ -347,17 +390,23 @@ export default function Home() {
           [existingAgent.id]: [experience, ...(prev[existingAgent.id] || [])],
         }));
 
-        void fetch(`/api/agents/${existingAgent.id}`, {
+        void fetch("/api/agents", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
+            id: existingAgent.id,
+            name: formData.name.trim() || existingAgent.name,
+            role: formData.role.trim() || existingAgent.role,
+            location: existingAgent.location,
+            linkedin: existingAgent.linkedin,
+            phoneCountryCode: phone ? phoneCountryCode : undefined,
+            phone,
+            summary: existingAgent.summary,
+            tags: mergedTags,
             rating: ratingValue,
             notes: formData.summary.trim(),
-            tags: commentTags,
+            experienceTags: commentTags,
             countryRegion,
-            ghosted: false,
-            fakeJob: false,
-            noResponse: false,
             createdAt: createdAt.toISOString(),
           }),
         }).catch(() => {
@@ -372,6 +421,8 @@ export default function Home() {
         role: formData.role.trim() || "HR Agent",
         location: countryRegion,
         linkedin,
+        phoneCountryCode,
+        phone,
         summary: formData.summary.trim() || "No summary yet.",
         tags: focusAreaTags,
         createdAt,
@@ -398,15 +449,17 @@ export default function Home() {
       void fetch("/api/agents", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          id: nextAgent.id,
-          name: nextAgent.name,
-          role: nextAgent.role,
-          location: nextAgent.location,
-          linkedin: nextAgent.linkedin,
-          summary: nextAgent.summary,
-          tags: nextAgent.tags,
-          rating: ratingValue,
+          body: JSON.stringify({
+            id: nextAgent.id,
+            name: nextAgent.name,
+            role: nextAgent.role,
+            location: nextAgent.location,
+            linkedin: nextAgent.linkedin,
+            phoneCountryCode: nextAgent.phoneCountryCode,
+            phone: nextAgent.phone,
+            summary: nextAgent.summary,
+            tags: nextAgent.tags,
+            rating: ratingValue,
           notes: formData.summary.trim(),
           experienceTags: commentTags,
           countryRegion,
@@ -422,6 +475,8 @@ export default function Home() {
       role: "",
       location: "",
       linkedin: "",
+      phoneCountryCode: "+1",
+      phone: "",
       summary: "",
       tags: "",
       rating: 5,
@@ -563,6 +618,38 @@ export default function Home() {
                 className={inputClass}
                 placeholder="https://www.linkedin.com/in/..."
               />
+            </div>
+            <div className="space-y-2">
+              <label className={labelClass} htmlFor="phone">
+                Mobile phone
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="phoneCountryCode"
+                  aria-label="Mobile phone country code"
+                  inputMode="numeric"
+                  value={formData.phoneCountryCode}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, "").slice(0, 3);
+                    setFormData((prev) => ({ ...prev, phoneCountryCode: digits ? `+${digits}` : "" }));
+                  }}
+                  className={`${inputBaseClass} w-20 shrink-0`}
+                  placeholder="+1"
+                />
+                <input
+                  id="phone"
+                  type="tel"
+                  inputMode="numeric"
+                  value={formData.phone}
+                  maxLength={10}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+                    setFormData((prev) => ({ ...prev, phone: digits }));
+                  }}
+                  className={`${inputBaseClass} flex-1`}
+                  placeholder="1234567890"
+                />
+              </div>
             </div>
           </div>
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -746,6 +833,10 @@ export default function Home() {
               );
               const tagVotes = tagPairs.reduce((sum, [, count]) => sum + count, 0);
               const areaTags = filterOutQuickTags(agent.tags || []);
+              const maskedPhone = formatMaskedPhone(agent.phone);
+              const maskedMobile = maskedPhone
+                ? `${normalizeCountryCode(agent.phoneCountryCode) || "+1"} ${maskedPhone}`
+                : "";
               const crTags = entries.reduce<Record<string, number>>((acc, entry) => {
                 const key = normalizeCountryRegion(entry.countryRegion || "");
                 acc[key] = (acc[key] ?? 0) + 1;
@@ -827,6 +918,18 @@ export default function Home() {
                               ))
                             )}
                           </div>
+                          {maskedMobile && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <span
+                                className={`text-[10px] font-semibold uppercase tracking-wide ${
+                                  isDark ? "text-slate-400" : "text-slate-500"
+                                }`}
+                              >
+                                Mobile:
+                              </span>
+                              <span className={chipClass}>{maskedMobile}</span>
+                            </div>
+                          )}
                           {tagPairs.length > 0 && (
                             <div className="mt-2 flex flex-wrap items-center gap-2">
                               <span
@@ -843,9 +946,7 @@ export default function Home() {
                               ))}
                             </div>
                           )}
-                          <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                            {agent.location}
-                          </p>
+
                           <p className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}>
                             {entries.length} submission{entries.length === 1 ? "" : "s"}
                             {tagVotes ? ` · ${tagVotes} tag vote${tagVotes === 1 ? "" : "s"}` : ""}

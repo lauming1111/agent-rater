@@ -17,6 +17,8 @@ export type AgentProfile = {
   role: string;
   location: string;
   linkedin: string;
+  phoneCountryCode: string;
+  phone: string;
   summary: string;
   tags: string[];
   createdAt: string;
@@ -125,7 +127,21 @@ export async function getAgentWithExperiences(agentId: string) {
 
   const items = (res.Items ?? []) as Array<Record<string, unknown>>;
 
-  const profile = items.find((item) => item.SK === "PROFILE") as unknown as AgentProfile | undefined;
+  const profileItem = items.find((item) => item.SK === "PROFILE");
+  const profile = profileItem
+    ? ({
+        id: agentId,
+        name: String(profileItem.name ?? ""),
+        role: String(profileItem.role ?? ""),
+        location: String(profileItem.location ?? ""),
+        linkedin: String(profileItem.linkedin ?? ""),
+        phoneCountryCode: String(profileItem.phoneCountryCode ?? "+1"),
+        phone: String(profileItem.phone ?? ""),
+        summary: String(profileItem.summary ?? ""),
+        tags: Array.isArray(profileItem.tags) ? (profileItem.tags as string[]) : [],
+        createdAt: String(profileItem.createdAt ?? ""),
+      } satisfies AgentProfile)
+    : undefined;
   const experiences = items
     .filter((item) => typeof item.SK === "string" && item.SK.startsWith("EXPERIENCE#"))
     .map((item) => {
@@ -179,6 +195,8 @@ export async function listAgentsWithExperiences(limit = 50) {
         role: String(item.role ?? ""),
         location: String(item.location ?? ""),
         linkedin: String(item.linkedin ?? ""),
+        phoneCountryCode: String(item.phoneCountryCode ?? "+1"),
+        phone: String(item.phone ?? ""),
         summary: String(item.summary ?? ""),
         tags: Array.isArray(item.tags) ? (item.tags as string[]) : [],
         createdAt: String(item.createdAt ?? ""),
@@ -262,6 +280,8 @@ export async function getAgentProfile(agentId: string) {
     role: String(item.role ?? ""),
     location: String(item.location ?? ""),
     linkedin: String(item.linkedin ?? ""),
+    phoneCountryCode: String(item.phoneCountryCode ?? "+1"),
+    phone: String(item.phone ?? ""),
     summary: String(item.summary ?? ""),
     tags: Array.isArray(item.tags) ? (item.tags as string[]) : [],
     createdAt: String(item.createdAt ?? ""),

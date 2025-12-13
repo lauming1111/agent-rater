@@ -16,6 +16,20 @@ function jsonError(status: number, message: string) {
   return NextResponse.json({ error: message }, { status });
 }
 
+function normalizePhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.length === 11 && digits.startsWith("1")) return digits.slice(1);
+  if (digits.length > 10) return digits.slice(-10);
+  if (digits.length < 10) return "";
+  return digits;
+}
+
+function normalizeCountryCode(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 3);
+  return digits ? `+${digits}` : "";
+}
+
 export async function GET() {
   try {
     const data = await listAgentsWithExperiences(100);
@@ -42,6 +56,8 @@ export async function POST(req: Request) {
     role?: string;
     location?: string;
     linkedin?: string;
+    phoneCountryCode?: string;
+    phone?: string;
     summary?: string;
     tags?: string[] | string;
     rating?: number;
@@ -84,6 +100,9 @@ export async function POST(req: Request) {
   const role = typeof input.role === "string" && input.role.trim() ? input.role.trim() : "HR Agent";
   const location = typeof input.location === "string" && input.location.trim() ? input.location.trim() : "Unknown";
   const summary = typeof input.summary === "string" && input.summary.trim() ? input.summary.trim() : "No summary yet.";
+  const phoneCountryCode =
+    typeof input.phoneCountryCode === "string" ? normalizeCountryCode(input.phoneCountryCode) : "";
+  const phone = typeof input.phone === "string" ? normalizePhone(input.phone) : "";
 
   const rating = typeof input.rating === "number" ? input.rating : undefined;
   const notes = typeof input.notes === "string" ? input.notes : "";
@@ -108,15 +127,21 @@ export async function POST(req: Request) {
     if (existingId) {
       const profile = await getAgentProfile(existingId);
       let responseTags = tags;
+      let responsePhone = phone;
+      let responsePhoneCountryCode = phoneCountryCode;
       if (profile) {
         const mergedTags = Array.from(new Set([...(profile.tags ?? []), ...tags]));
         responseTags = mergedTags;
+        responsePhone = phone || profile.phone;
+        responsePhoneCountryCode = phoneCountryCode || profile.phoneCountryCode || "+1";
         await putAgentProfile({
           ...profile,
           name,
           role,
           location,
           linkedin,
+          phoneCountryCode: responsePhoneCountryCode,
+          phone: responsePhone,
           summary,
           tags: mergedTags,
           createdAt,
@@ -129,21 +154,44 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          agent: { id: existingId, name, role, location, linkedin, summary, tags: responseTags, createdAt },
+          agent: {
+            id: existingId,
+            name,
+            role,
+            location,
+            linkedin,
+            phoneCountryCode: responsePhoneCountryCode || "+1",
+            phone: responsePhone,
+            summary,
+            tags: responseTags,
+            createdAt,
+          },
           experience,
         },
         { status: 200 }
       );
     }
 
+    const resolvedPhoneCountryCode = phoneCountryCode || "+1";
     const res = await createAgentWithInitialExperience({
-      agent: { id, name, role, location, linkedin, summary, tags, createdAt },
+      agent: { id, name, role, location, linkedin, phoneCountryCode: resolvedPhoneCountryCode, phone, summary, tags, createdAt },
       experience,
     });
 
     return NextResponse.json(
       {
-        agent: { id, name, role, location, linkedin, summary, tags, createdAt: res.createdAt },
+        agent: {
+          id,
+          name,
+          role,
+          location,
+          linkedin,
+          phoneCountryCode: resolvedPhoneCountryCode,
+          phone,
+          summary,
+          tags,
+          createdAt: res.createdAt,
+        },
         experience: res.experience,
       },
       { status: 201 }
