@@ -18,6 +18,24 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
+## DynamoDB (optional)
+
+This app can load/save agents to AWS DynamoDB via Next.js API routes.
+
+1. Create a DynamoDB table with partition key `PK` (string) and sort key `SK` (string).
+2. Set environment variables (e.g. in `.env.local`):
+
+```bash
+AWS_REGION=us-east-1
+DDB_TABLE=AgentExperiences
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+```
+
+Item shapes used:
+- Agent profile: `PK=AGENT#{id}`, `SK=PROFILE`
+- Experience: `PK=AGENT#{id}`, `SK=EXPERIENCE#{createdAt}`
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More

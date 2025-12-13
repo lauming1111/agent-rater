@@ -1,8 +1,9 @@
 "use client";
 
-import { type ChangeEvent, type FormEvent, useMemo, useState } from "react";
+import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from "react";
 
 type Agent = {
+  id: string;
   name: string;
   role: string;
   location: string;
@@ -22,40 +23,11 @@ type Experience = {
 };
 
 const starterAgents: Agent[] = [
-  {
-    name: "Mara Chen",
-    role: "Senior HR Business Partner",
-    location: "Singapore • APAC",
-    linkedin: "https://www.linkedin.com/in/mara-chen",
-    summary:
-      "Builds people systems for hyper-growth teams and guides leaders through restructures with clarity and calm.",
-    tags: ["hyper-growth", "org design", "people ops"],
-    createdAt: new Date("2025-01-10"),
-  },
-  {
-    name: "Andre Lewis",
-    role: "Technical Recruiter",
-    location: "Remote • Americas",
-    linkedin: "https://www.linkedin.com/in/andre-lewis",
-    summary:
-      "Full-cycle recruiter for engineering orgs with a track record in startup-to-scale transitions.",
-    tags: ["recruiting", "eng hiring", "process design"],
-    createdAt: new Date("2025-01-08"),
-  },
-  {
-    name: "Priya Raman",
-    role: "Talent Development Lead",
-    location: "London • EMEA",
-    linkedin: "https://www.linkedin.com/in/priya-raman",
-    summary:
-      "Designs learning programs and leadership pipelines; great at distilling feedback into action plans.",
-    tags: ["L&D", "leadership", "coaching"],
-    createdAt: new Date("2025-01-05"),
-  },
+
 ];
 
 const seedExperiences: Record<string, Experience[]> = {
-  "Mara Chen": [
+  "mara-chen": [
     {
       rating: 5,
       notes: "Responsive, transparent, and set clear timelines during a reorg.",
@@ -65,7 +37,7 @@ const seedExperiences: Record<string, Experience[]> = {
       createdAt: new Date("2024-11-12"),
     },
   ],
-  "Andre Lewis": [
+  "andre-lewis": [
     {
       rating: 2,
       notes: "Slow follow up; never heard back after sharing onsite availability.",
@@ -105,6 +77,86 @@ export default function Home() {
     rating: 5,
   });
   const [selectedQuickTags, setSelectedQuickTags] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const safeDate = (value: unknown) => {
+      if (typeof value !== "string") return new Date();
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? new Date() : date;
+    };
+
+    async function loadFromApi() {
+      try {
+        const res = await fetch("/api/agents", { cache: "no-store" });
+        if (!res.ok) return;
+
+        const data = (await res.json()) as {
+          agents?: Array<{
+            id: string;
+            name: string;
+            role: string;
+            location: string;
+            linkedin: string;
+            summary: string;
+            tags: string[];
+            createdAt: string;
+          }>;
+          experiencesByAgentId?: Record<
+            string,
+            Array<{
+              rating: number;
+              notes: string;
+              ghosted: boolean;
+              fakeJob: boolean;
+              noResponse: boolean;
+              createdAt: string;
+            }>
+          >;
+        };
+
+        if (!Array.isArray(data.agents)) return;
+
+        const nextAgents: Agent[] = data.agents.map((agent) => ({
+          id: agent.id,
+          name: agent.name,
+          role: agent.role,
+          location: agent.location,
+          linkedin: agent.linkedin,
+          summary: agent.summary,
+          tags: Array.isArray(agent.tags) ? agent.tags : [],
+          createdAt: safeDate(agent.createdAt),
+        }));
+
+        const nextExperiences: Record<string, Experience[]> = {};
+        const exp = data.experiencesByAgentId ?? {};
+        for (const [agentId, items] of Object.entries(exp)) {
+          if (!Array.isArray(items)) continue;
+          nextExperiences[agentId] = items.map((item) => ({
+            rating: Number(item.rating ?? 0),
+            notes: item.notes ?? "",
+            ghosted: Boolean(item.ghosted),
+            fakeJob: Boolean(item.fakeJob),
+            noResponse: Boolean(item.noResponse),
+            createdAt: safeDate(item.createdAt),
+          }));
+        }
+
+        if (cancelled) return;
+        setAgents(nextAgents);
+        setExperiences(nextExperiences);
+      } catch {
+        // Fall back to seeded in-memory data when API is unavailable (e.g. no DynamoDB env vars yet).
+      }
+    }
+
+    void loadFromApi();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filteredAgents = useMemo(() => {
     const term = search.toLowerCase();
@@ -152,7 +204,11 @@ export default function Home() {
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!formData.name || !formData.linkedin) return;
+
+    const agentId = crypto.randomUUID();
+    const createdAt = new Date();
     const nextAgent: Agent = {
+      id: agentId,
       name: formData.name.trim(),
       role: formData.role.trim() || "HR Agent",
       location: formData.location.trim() || "—",
@@ -167,7 +223,7 @@ export default function Home() {
             .filter(Boolean),
         ])
       ),
-      createdAt: new Date(),
+      createdAt,
     };
     setAgents((prev) => [nextAgent, ...prev]);
 
@@ -179,13 +235,31 @@ export default function Home() {
         ghosted: false,
         fakeJob: false,
         noResponse: false,
-        createdAt: new Date(),
+        createdAt,
       };
       setExperiences((prev) => ({
         ...prev,
-        [nextAgent.name]: [firstExperience, ...(prev[nextAgent.name] || [])],
+        [nextAgent.id]: [firstExperience, ...(prev[nextAgent.id] || [])],
       }));
     }
+
+    void fetch("/api/agents", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: nextAgent.id,
+        name: nextAgent.name,
+        role: nextAgent.role,
+        location: nextAgent.location,
+        linkedin: nextAgent.linkedin,
+        summary: nextAgent.summary,
+        tags: nextAgent.tags,
+        rating: ratingValue,
+        createdAt: createdAt.toISOString(),
+      }),
+    }).catch(() => {
+      // Fall back to local-only state when API is unavailable.
+    });
 
     setFormData({
       name: "",
@@ -208,8 +282,8 @@ export default function Home() {
   const sortedAgents = useMemo(() => {
     const list = [...filteredAgents];
     list.sort((a, b) => {
-      const aAvg = averageRating(experiences[a.name] || []);
-      const bAvg = averageRating(experiences[b.name] || []);
+      const aAvg = averageRating(experiences[a.id] || []);
+      const bAvg = averageRating(experiences[b.id] || []);
       if (sortOption === "latest") return b.createdAt.getTime() - a.createdAt.getTime();
       if (sortOption === "rating-desc") return bAvg - aAvg || a.name.localeCompare(b.name);
       if (sortOption === "rating-asc") return aAvg - bAvg || a.name.localeCompare(b.name);
@@ -499,7 +573,7 @@ export default function Home() {
           </div>
           <div className="grid grid-cols-1 gap-4">
             {sortedAgents.map((agent) => {
-              const entries = experiences[agent.name] || [];
+              const entries = experiences[agent.id] || [];
               const avg = averageRating(entries);
               const flaggedIssues = entries.flatMap((item) => {
                 const issues: string[] = [];
@@ -599,36 +673,36 @@ export default function Home() {
                           </span>
                         )}
                       </div>
-                      {flaggedIssues.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {[...new Set(flaggedIssues)].map((issue) => (
-                            <span
-                              key={issue}
-                              className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
-                                isDark ? "bg-red-900/40 text-red-100" : "bg-red-50 text-red-700"
-                              }`}
-                            >
-                              {issue}
-                            </span>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   </div>
 
-                  <div
+                  <details
                     className={`mt-6 space-y-3 rounded-2xl border p-4 ${
                       isDark ? "border-slate-800 bg-slate-900/70" : "border-slate-200 bg-slate-50"
                     }`}
                   >
-                    <div className="flex items-center justify-between">
+                    <summary className="flex cursor-pointer list-none items-center justify-between">
                       <p className={`text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}>
-                        Community experiences
+                        More details
                       </p>
                       <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                         {entries.length} submission(s)
                       </p>
-                    </div>
+                    </summary>
+                    {flaggedIssues.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {[...new Set(flaggedIssues)].map((issue) => (
+                          <span
+                            key={issue}
+                            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+                              isDark ? "bg-red-900/40 text-red-100" : "bg-red-50 text-red-700"
+                            }`}
+                          >
+                            {issue}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     {entries.length > 0 ? (
                       <div className={`space-y-3 border-t pt-3 ${isDark ? "border-slate-800" : "border-slate-200"}`}>
                         {entries.slice(0, 3).map((entry, idx) => (
@@ -684,7 +758,7 @@ export default function Home() {
                         No experiences shared yet for this agent.
                       </div>
                     )}
-                  </div>
+                  </details>
                 </article>
               );
             })}
