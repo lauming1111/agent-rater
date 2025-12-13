@@ -45,6 +45,7 @@ export async function POST(req: Request) {
     summary?: string;
     tags?: string[] | string;
     rating?: number;
+    notes?: string;
     createdAt?: string;
   };
 
@@ -74,11 +75,13 @@ export async function POST(req: Request) {
   const summary = typeof input.summary === "string" && input.summary.trim() ? input.summary.trim() : "No summary yet.";
 
   const rating = typeof input.rating === "number" ? input.rating : undefined;
+  const notes = typeof input.notes === "string" ? input.notes : "";
   const experience =
     rating && rating >= 1 && rating <= 5
       ? {
           rating,
-          notes: "",
+          notes,
+          tags,
           ghosted: false,
           fakeJob: false,
           noResponse: false,

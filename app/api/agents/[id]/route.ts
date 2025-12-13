@@ -38,6 +38,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const input = body as {
     rating?: number;
     notes?: string;
+    tags?: string[] | string;
     ghosted?: boolean;
     fakeJob?: boolean;
     noResponse?: boolean;
@@ -48,11 +49,21 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!(rating >= 1 && rating <= 5)) return jsonError(400, "rating must be 1..5");
 
   const createdAt = (typeof input.createdAt === "string" && input.createdAt) || new Date().toISOString();
+  const tags =
+    Array.isArray(input.tags)
+      ? input.tags.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim())
+      : typeof input.tags === "string"
+        ? input.tags
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean)
+        : [];
 
   try {
     await addExperience(id, {
       rating,
       notes: typeof input.notes === "string" ? input.notes : "",
+      tags,
       ghosted: Boolean(input.ghosted),
       fakeJob: Boolean(input.fakeJob),
       noResponse: Boolean(input.noResponse),
@@ -64,4 +75,3 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return jsonError(503, message);
   }
 }
-

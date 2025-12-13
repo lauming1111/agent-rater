@@ -16,6 +16,7 @@ type Agent = {
 type Experience = {
   rating: number;
   notes: string;
+  tags: string[];
   ghosted: boolean;
   fakeJob: boolean;
   noResponse: boolean;
@@ -59,71 +60,33 @@ function mergeAgentsByLinkedin(inputAgents: Agent[], inputExperiences: Record<st
   return { agents: mergedAgents, experiences: mergedExperiences };
 }
 
+function submissionTags(item: Experience) {
+  const tags = new Set<string>(item.tags || []);
+  if (item.ghosted) tags.add("Ghosted");
+  if (item.fakeJob) tags.add("Fake job");
+  if (item.noResponse) tags.add("No response");
+  return Array.from(tags);
+}
+
+function tagCountsFor(items: Experience[]) {
+  const counts: Record<string, number> = {};
+  for (const item of items) {
+    for (const tag of submissionTags(item)) {
+      counts[tag] = (counts[tag] ?? 0) + 1;
+    }
+  }
+  return counts;
+}
+
+function tagVoteCountFor(items: Experience[]) {
+  const counts = tagCountsFor(items);
+  return Object.values(counts).reduce((sum, value) => sum + value, 0);
+}
+
 const starterAgents: Agent[] = [
-  {
-    id: "mara-chen",
-    name: "Mara Chen",
-    role: "Senior HR Business Partner",
-    location: "Singapore • APAC",
-    linkedin: "https://www.linkedin.com/in/mara-chen",
-    summary:
-      "Builds people systems for hyper-growth teams and guides leaders through restructures with clarity and calm.",
-    tags: ["hyper-growth", "org design", "people ops"],
-    createdAt: new Date("2025-01-10"),
-  },
-  {
-    id: "andre-lewis",
-    name: "Andre Lewis",
-    role: "Technical Recruiter",
-    location: "Remote • Americas",
-    linkedin: "https://www.linkedin.com/in/andre-lewis",
-    summary: "Full-cycle recruiter for engineering orgs with a track record in startup-to-scale transitions.",
-    tags: ["recruiting", "eng hiring", "process design"],
-    createdAt: new Date("2025-01-08"),
-  },
-  {
-    id: "priya-raman",
-    name: "Priya Raman",
-    role: "Talent Development Lead",
-    location: "London • EMEA",
-    linkedin: "https://www.linkedin.com/in/priya-raman",
-    summary:
-      "Designs learning programs and leadership pipelines; great at distilling feedback into action plans.",
-    tags: ["L&D", "leadership", "coaching"],
-    createdAt: new Date("2025-01-05"),
-  },
 ];
 
-const seedExperiences: Record<string, Experience[]> = {
-  "mara-chen": [
-    {
-      rating: 5,
-      notes: "Responsive, transparent, and set clear timelines during a reorg.",
-      ghosted: false,
-      fakeJob: false,
-      noResponse: false,
-      createdAt: new Date("2024-11-12"),
-    },
-  ],
-  "andre-lewis": [
-    {
-      rating: 2,
-      notes: "Slow follow up; never heard back after sharing onsite availability.",
-      ghosted: true,
-      fakeJob: false,
-      noResponse: true,
-      createdAt: new Date("2025-01-04"),
-    },
-    {
-      rating: 4,
-      notes: "Solid for backend hiring; good prep materials.",
-      ghosted: false,
-      fakeJob: false,
-      noResponse: false,
-      createdAt: new Date("2024-09-15"),
-    },
-  ],
-};
+const seedExperiences: Record<string, Experience[]> = {};
 
 const quickTags = ["Ghosted","Resume taker", "Slow response", "Good experience", "Got interview/job"];
 
@@ -132,7 +95,7 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [experiences, setExperiences] = useState<Record<string, Experience[]>>(seedExperiences);
   const [sortOption, setSortOption] = useState<
-    "latest" | "rating-desc" | "rating-asc" | "name-asc" | "name-desc"
+    "latest" | "rating-desc" | "rating-asc" | "tags-desc" | "name-asc" | "name-desc"
   >("latest");
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [formData, setFormData] = useState({
@@ -176,6 +139,7 @@ export default function Home() {
             Array<{
               rating: number;
               notes: string;
+              tags?: string[];
               ghosted: boolean;
               fakeJob: boolean;
               noResponse: boolean;
@@ -204,6 +168,7 @@ export default function Home() {
           nextExperiences[agentId] = items.map((item) => ({
             rating: Number(item.rating ?? 0),
             notes: item.notes ?? "",
+            tags: Array.isArray(item.tags) ? item.tags : [],
             ghosted: Boolean(item.ghosted),
             fakeJob: Boolean(item.fakeJob),
             noResponse: Boolean(item.noResponse),
@@ -313,7 +278,8 @@ export default function Home() {
       if (ratingValue >= 1 && ratingValue <= 5) {
         const experience: Experience = {
           rating: ratingValue,
-          notes: "",
+          notes: formData.summary.trim(),
+          tags: submittedTags,
           ghosted: false,
           fakeJob: false,
           noResponse: false,
@@ -330,7 +296,8 @@ export default function Home() {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             rating: ratingValue,
-            notes: "",
+            notes: formData.summary.trim(),
+            tags: submittedTags,
             ghosted: false,
             fakeJob: false,
             noResponse: false,
@@ -357,7 +324,8 @@ export default function Home() {
       if (ratingValue >= 1 && ratingValue <= 5) {
         const firstExperience: Experience = {
           rating: ratingValue,
-          notes: "",
+          notes: formData.summary.trim(),
+          tags: submittedTags,
           ghosted: false,
           fakeJob: false,
           noResponse: false,
@@ -381,6 +349,7 @@ export default function Home() {
           summary: nextAgent.summary,
           tags: nextAgent.tags,
           rating: ratingValue,
+          notes: formData.summary.trim(),
           createdAt: createdAt.toISOString(),
         }),
       }).catch(() => {
@@ -411,7 +380,10 @@ export default function Home() {
     list.sort((a, b) => {
       const aAvg = averageRating(experiences[a.id] || []);
       const bAvg = averageRating(experiences[b.id] || []);
+      const aTagVotes = tagVoteCountFor(experiences[a.id] || []);
+      const bTagVotes = tagVoteCountFor(experiences[b.id] || []);
       if (sortOption === "latest") return b.createdAt.getTime() - a.createdAt.getTime();
+      if (sortOption === "tags-desc") return bTagVotes - aTagVotes || b.createdAt.getTime() - a.createdAt.getTime();
       if (sortOption === "rating-desc") return bAvg - aAvg || a.name.localeCompare(b.name);
       if (sortOption === "rating-asc") return aAvg - bAvg || a.name.localeCompare(b.name);
       if (sortOption === "name-asc") return a.name.localeCompare(b.name);
@@ -500,7 +472,7 @@ export default function Home() {
             </div>
             <div className="space-y-2">
               <label className={labelClass} htmlFor="location">
-                Location / region
+                Country/Region
               </label>
               <input
                 id="location"
@@ -528,7 +500,7 @@ export default function Home() {
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="md:col-span-2 space-y-2">
               <label className={labelClass} htmlFor="summary">
-                Comment (your judgment)
+                Comment
               </label>
               <textarea
                 id="summary"
@@ -683,6 +655,7 @@ export default function Home() {
                   }`}
                 >
                   <option value="latest">Latest submit</option>
+                  <option value="tags-desc">Most tag votes</option>
                   <option value="rating-desc">Rating: high to low</option>
                   <option value="rating-asc">Rating: low to high</option>
                   <option value="name-asc">Name: A → Z</option>
@@ -702,13 +675,11 @@ export default function Home() {
             {sortedAgents.map((agent) => {
               const entries = experiences[agent.id] || [];
               const avg = averageRating(entries);
-              const flaggedIssues = entries.flatMap((item) => {
-                const issues: string[] = [];
-                if (item.ghosted) issues.push("ghosted");
-                if (item.fakeJob) issues.push("fake job");
-                if (item.noResponse) issues.push("no response");
-                return issues;
-              });
+              const tagCounts = tagCountsFor(entries);
+              const tagPairs = Object.entries(tagCounts).sort(
+                (a, b) => b[1] - a[1] || a[0].localeCompare(b[0])
+              );
+              const tagVotes = tagPairs.reduce((sum, [, count]) => sum + count, 0);
               const initials =
                 agent.name
                   .split(" ")
@@ -746,10 +717,23 @@ export default function Home() {
                               {agent.role || "HR Agent"}
                             </span>
                           </div>
-                          <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                            {agent.location}
-                          </p>
-                        </div>
+                          {tagPairs.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {tagPairs.slice(0, 6).map(([tag, count]) => (
+                                <span key={tag} className={chipClass}>
+                                  {tag} ({count})
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                           <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                              {agent.location}
+                            </p>
+                           <p className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+                             {entries.length} submission{entries.length === 1 ? "" : "s"}
+                             {tagVotes ? ` · ${tagVotes} tag vote${tagVotes === 1 ? "" : "s"}` : ""}
+                           </p>
+                         </div>
                         <div className="flex items-center gap-3">
                           <div
                             className={`rounded-full px-3 py-1 text-xs font-semibold ${
@@ -771,35 +755,6 @@ export default function Home() {
                           </a>
                         </div>
                       </div>
-                      <div className="mt-3 space-y-1">
-                        <p
-                          className={`text-xs font-semibold uppercase tracking-wide ${
-                            isDark ? "text-slate-400" : "text-slate-500"
-                          }`}
-                        >
-                          User comment
-                        </p>
-                        <p
-                          className={`text-sm leading-relaxed ${
-                            isDark ? "text-slate-200" : "text-slate-700"
-                          }`}
-                        >
-                          {agent.summary}
-                        </p>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {agent.tags.length ? (
-                          agent.tags.map((tag) => (
-                            <span key={tag} className={chipClass}>
-                              {tag}
-                            </span>
-                          ))
-                        ) : (
-                          <span className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}>
-                            No focus areas added.
-                          </span>
-                        )}
-                      </div>
                     </div>
                   </div>
 
@@ -813,26 +768,13 @@ export default function Home() {
                         More details
                       </p>
                       <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                        {entries.length} submission(s)
+                        {entries.length} submission{entries.length === 1 ? "" : "s"}
+                        {tagVotes ? ` · ${tagVotes} tag vote${tagVotes === 1 ? "" : "s"}` : ""}
                       </p>
                     </summary>
-                    {flaggedIssues.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {[...new Set(flaggedIssues)].map((issue) => (
-                          <span
-                            key={issue}
-                            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
-                              isDark ? "bg-red-900/40 text-red-100" : "bg-red-50 text-red-700"
-                            }`}
-                          >
-                            {issue}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                     {entries.length > 0 ? (
                       <div className={`space-y-3 border-t pt-3 ${isDark ? "border-slate-800" : "border-slate-200"}`}>
-                        {entries.slice(0, 3).map((entry, idx) => (
+                        {entries.map((entry, idx) => (
                           <div
                             key={idx}
                             className={`rounded-xl px-4 py-3 shadow-[0_4px_10px_-8px_rgba(0,0,0,0.4)] ${
@@ -849,30 +791,24 @@ export default function Home() {
                             <p className={`mt-1 text-sm ${isDark ? "text-slate-100" : "text-slate-800"}`}>
                               {entry.notes || "No additional notes provided."}
                             </p>
-                            <div className={`mt-2 flex flex-wrap gap-2 text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                              {entry.ghosted && (
-                                <span className={`rounded-full px-2 py-1 ${isDark ? "bg-slate-800" : "bg-slate-100"}`}>
-                                  Ghosted
-                                </span>
-                              )}
-                              {entry.fakeJob && (
-                                <span className={`rounded-full px-2 py-1 ${isDark ? "bg-slate-800" : "bg-slate-100"}`}>
-                                  Fake job
-                                </span>
-                              )}
-                              {entry.noResponse && (
-                                <span className={`rounded-full px-2 py-1 ${isDark ? "bg-slate-800" : "bg-slate-100"}`}>
-                                  No echo
-                                </span>
-                              )}
-                            </div>
+                            {submissionTags(entry).length > 0 && (
+                              <div
+                                className={`mt-2 flex flex-wrap gap-2 text-xs ${
+                                  isDark ? "text-slate-400" : "text-slate-600"
+                                }`}
+                              >
+                                {submissionTags(entry).map((tag) => (
+                                  <span
+                                    key={tag}
+                                    className={`rounded-full px-2 py-1 ${isDark ? "bg-slate-800" : "bg-slate-100"}`}
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         ))}
-                        {entries.length > 3 && (
-                          <div className={`text-right text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                            +{entries.length - 3} more submission(s)
-                          </div>
-                        )}
                       </div>
                     ) : (
                       <div

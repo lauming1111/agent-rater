@@ -25,6 +25,7 @@ export type AgentProfile = {
 export type Experience = {
   rating: number;
   notes: string;
+  tags: string[];
   ghosted: boolean;
   fakeJob: boolean;
   noResponse: boolean;
@@ -54,7 +55,13 @@ export async function createAgentWithInitialExperience(input: {
     ? { ...input.experience, createdAt: expCreatedAt }
     : undefined;
 
-  const transactItems = [
+  const transactItems: Array<{
+    Put: {
+      TableName: string;
+      Item: Record<string, unknown>;
+      ConditionExpression?: string;
+    };
+  }> = [
     {
       Put: {
         TableName: tableName,
@@ -121,8 +128,16 @@ export async function getAgentWithExperiences(agentId: string) {
   const experiences = items
     .filter((item) => typeof item.SK === "string" && item.SK.startsWith("EXPERIENCE#"))
     .map((item) => {
-      const exp = item as unknown as Experience & { SK: string };
-      return exp;
+      const exp = item as unknown as Partial<Experience> & { SK: string };
+      return {
+        rating: Number(exp.rating ?? 0),
+        notes: String(exp.notes ?? ""),
+        tags: Array.isArray(exp.tags) ? (exp.tags as string[]) : [],
+        ghosted: Boolean(exp.ghosted),
+        fakeJob: Boolean(exp.fakeJob),
+        noResponse: Boolean(exp.noResponse),
+        createdAt: String(exp.createdAt ?? ""),
+      } satisfies Experience;
     })
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
@@ -139,7 +154,8 @@ export async function listAgentsWithExperiences(limit = 50) {
   while (profiles.length < limit) {
     const remaining = limit - profiles.length;
 
-    const scan = await ddb.send(
+    const scan: { Items?: Array<Record<string, unknown>>; LastEvaluatedKey?: Record<string, unknown> } =
+      await ddb.send(
       new ScanCommand({
         TableName: tableName,
         ExclusiveStartKey: lastEvaluatedKey,
@@ -188,6 +204,7 @@ export async function listAgentsWithExperiences(limit = 50) {
         .map((item) => ({
           rating: Number(item.rating ?? 0),
           notes: String(item.notes ?? ""),
+          tags: Array.isArray(item.tags) ? (item.tags as string[]) : [],
           ghosted: Boolean(item.ghosted),
           fakeJob: Boolean(item.fakeJob),
           noResponse: Boolean(item.noResponse),
