@@ -94,6 +94,7 @@ export default function Home() {
   const [sortOption, setSortOption] = useState<
     "latest" | "rating-desc" | "rating-asc" | "name-asc" | "name-desc"
   >("latest");
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [formData, setFormData] = useState({
     name: "",
     role: "",
@@ -131,6 +132,22 @@ export default function Home() {
       prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]
     );
   };
+
+  const isDark = theme === "dark";
+  const pageBg = isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900";
+  const panelClass = isDark
+    ? "rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-lg shadow-black/40"
+    : "rounded-3xl border border-slate-200 bg-white p-6 shadow-sm";
+  const inputClass = isDark
+    ? "w-full rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-emerald-400 focus:bg-slate-900"
+    : "w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:bg-white";
+  const chipClass = isDark
+    ? "rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-100"
+    : "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700";
+  const cardClass = isDark
+    ? "rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-lg shadow-black/40 transition hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-500/10"
+    : "rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg";
+  const labelClass = isDark ? "text-sm text-slate-200" : "text-sm text-slate-700";
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -204,30 +221,59 @@ export default function Home() {
   }, [filteredAgents, sortOption, experiences]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className={`min-h-screen ${pageBg}`}>
       <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-12 sm:gap-10 sm:px-6 lg:px-8">
-        <header className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-600">HR Agent Directory</p>
-          <h1 className="mt-3 text-3xl font-semibold leading-tight text-slate-900 sm:text-4xl">
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${
+              isDark
+                ? "border-slate-700 bg-slate-800 text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
+                : "border-slate-200 bg-slate-50 text-slate-800 hover:border-emerald-300 hover:text-emerald-700"
+            }`}
+          >
+            {isDark ? "Switch to light mode" : "Switch to dark mode"}
+          </button>
+        </div>
+        <header className={`${panelClass} p-8`}>
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-500">HR Agent Directory</p>
+          <h1
+            className={`mt-3 text-3xl font-semibold leading-tight sm:text-4xl ${
+              isDark ? "text-slate-50" : "text-slate-900"
+            }`}
+          >
             Share HR agents, then see how others experienced them.
           </h1>
-          <p className="mt-3 max-w-3xl text-base leading-relaxed text-slate-600">
+          <p
+            className={`mt-3 max-w-3xl text-base leading-relaxed ${
+              isDark ? "text-slate-300" : "text-slate-600"
+            }`}
+          >
             Layered like a social feed: add a profile with your own comments, search quickly, and browse cards that feel
             familiar to Facebook/LinkedIn.
           </p>
         </header>
 
-        <form onSubmit={handleSubmit} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <form onSubmit={handleSubmit} className={panelClass}>
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-600">User input</p>
-              <h2 className="text-xl font-semibold text-slate-900">Add an HR agent</h2>
+              <h2 className={`text-xl font-semibold ${isDark ? "text-slate-50" : "text-slate-900"}`}>
+                Add an HR agent
+              </h2>
             </div>
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">New</span>
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-medium ${
+                isDark ? "bg-emerald-900/40 text-emerald-100" : "bg-emerald-50 text-emerald-700"
+              }`}
+            >
+              New
+            </span>
           </div>
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm text-slate-700" htmlFor="name">
+              <label className={labelClass} htmlFor="name">
                 Full name *
               </label>
               <input
@@ -235,36 +281,36 @@ export default function Home() {
                 value={formData.name}
                 onChange={handleInput("name")}
                 required
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:bg-white"
+                className={inputClass}
                 placeholder="e.g. Jamie Park"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm text-slate-700" htmlFor="role">
+              <label className={labelClass} htmlFor="role">
                 Role / title
               </label>
               <input
                 id="role"
                 value={formData.role}
                 onChange={handleInput("role")}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:bg-white"
+                className={inputClass}
                 placeholder="HRBP, recruiter, talent partner…"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm text-slate-700" htmlFor="location">
+              <label className={labelClass} htmlFor="location">
                 Location / region
               </label>
               <input
                 id="location"
                 value={formData.location}
                 onChange={handleInput("location")}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:bg-white"
+                className={inputClass}
                 placeholder="Remote, NYC, EMEA…"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm text-slate-700" htmlFor="linkedin">
+              <label className={labelClass} htmlFor="linkedin">
                 LinkedIn profile *
               </label>
               <input
@@ -273,27 +319,24 @@ export default function Home() {
                 value={formData.linkedin}
                 onChange={handleInput("linkedin")}
                 required
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:bg-white"
+                className={inputClass}
                 placeholder="https://www.linkedin.com/in/..."
               />
             </div>
           </div>
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="md:col-span-2 space-y-2">
-              <label className="text-sm text-slate-700" htmlFor="summary">
-                Comment
+              <label className={labelClass} htmlFor="summary">
+                Comment (your judgment)
               </label>
               <textarea
                 id="summary"
                 value={formData.summary}
                 onChange={handleInput("summary")}
                 rows={3}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:bg-white"
+                className={`${inputClass} min-h-[120px]`}
                 placeholder="Share your experience or assessment—responsiveness, honesty, process…"
               />
-                <label className="text-sm text-slate-700" htmlFor="summary">
-                Tags
-              </label>
               <div className="flex flex-wrap gap-2 pt-1">
                 {quickTags.map((tag) => {
                   const active = selectedQuickTags.includes(tag);
@@ -304,8 +347,12 @@ export default function Home() {
                       onClick={() => toggleQuickTag(tag)}
                       className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
                         active
-                          ? "border-emerald-400 bg-emerald-50 text-emerald-700"
-                          : "border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-200"
+                          ? isDark
+                            ? "border-emerald-400 bg-emerald-900/30 text-emerald-100"
+                            : "border-emerald-400 bg-emerald-50 text-emerald-700"
+                          : isDark
+                            ? "border-slate-700 bg-slate-800 text-slate-200 hover:border-emerald-300"
+                            : "border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-200"
                       }`}
                     >
                       {tag}
@@ -313,19 +360,19 @@ export default function Home() {
                   );
                 })}
               </div>
-              <p className="text-xs text-slate-500">
+              <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
                 Quick tags under your comment: Ghosted, Slow response, Good experience, Got interview/job.
               </p>
             </div>
             <div className="space-y-2">
-              <label className="text-sm text-slate-700" htmlFor="tags">
+              <label className={labelClass} htmlFor="tags">
                 Focus areas (comma separated)
               </label>
               <input
                 id="tags"
                 value={formData.tags}
                 onChange={handleInput("tags")}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:bg-white"
+                className={inputClass}
                 placeholder="recruiting, HRBP, onboarding"
               />
             </div>
@@ -333,7 +380,7 @@ export default function Home() {
 
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="space-y-2">
-              <label className="text-sm text-slate-700" htmlFor="rating">
+              <label className={labelClass} htmlFor="rating">
                 First rating (1-5)
               </label>
               <div className="flex flex-wrap gap-2" id="rating">
@@ -344,8 +391,12 @@ export default function Home() {
                       key={value}
                       className={`flex cursor-pointer items-center gap-1 rounded-full border px-3 py-2 text-sm font-semibold transition ${
                         active
-                          ? "border-emerald-400 bg-emerald-50 text-emerald-700"
-                          : "border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-200"
+                          ? isDark
+                            ? "border-emerald-400 bg-emerald-900/30 text-emerald-100"
+                            : "border-emerald-400 bg-emerald-50 text-emerald-700"
+                          : isDark
+                            ? "border-slate-700 bg-slate-900 text-slate-200 hover:border-emerald-300"
+                            : "border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-200"
                       }`}
                     >
                       <input
@@ -371,18 +422,26 @@ export default function Home() {
             >
               Add to directory
             </button>
-            <p className="text-xs text-slate-500">Saved locally in this session.</p>
+            <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>Saved locally in this session.</p>
           </div>
         </form>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className={panelClass}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-600">Search</p>
-              <h2 className="text-xl font-semibold text-slate-900">Find an agent quickly</h2>
-              <p className="text-sm text-slate-600">Filter by name, focus, region, or keywords.</p>
+              <h2 className={`text-xl font-semibold ${isDark ? "text-slate-50" : "text-slate-900"}`}>
+                Find an agent quickly
+              </h2>
+              <p className={`text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+                Filter by name, focus, region, or keywords.
+              </p>
             </div>
-            <span className="rounded-full bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700">
+            <span
+              className={`rounded-full px-4 py-2 text-xs font-semibold ${
+                isDark ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-700"
+              }`}
+            >
               {filteredAgents.length} match{filteredAgents.length === 1 ? "" : "es"}
             </span>
           </div>
@@ -393,7 +452,7 @@ export default function Home() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name, focus, region, or keywords"
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none ring-0 transition focus:border-emerald-400 focus:bg-white"
+              className={inputClass}
             />
           </div>
         </section>
@@ -402,15 +461,25 @@ export default function Home() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-600">Listing</p>
-              <h2 className="text-2xl font-semibold text-slate-900">List of HR agents</h2>
+              <h2 className={`text-2xl font-semibold ${isDark ? "text-slate-50" : "text-slate-900"}`}>
+                List of HR agents
+              </h2>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+              <label
+                className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] ${
+                  isDark ? "text-slate-300" : "text-slate-500"
+                }`}
+              >
                 Sort
                 <select
                   value={sortOption}
                   onChange={(e) => setSortOption(e.target.value as typeof sortOption)}
-                  className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 outline-none transition focus:border-emerald-400"
+                  className={`rounded-full border px-3 py-2 text-xs font-semibold outline-none transition ${
+                    isDark
+                      ? "border-slate-700 bg-slate-900 text-slate-100 focus:border-emerald-400"
+                      : "border-slate-200 bg-slate-50 text-slate-800 focus:border-emerald-400"
+                  }`}
                 >
                   <option value="latest">Latest submit</option>
                   <option value="rating-desc">Rating: high to low</option>
@@ -419,7 +488,11 @@ export default function Home() {
                   <option value="name-desc">Name: Z → A</option>
                 </select>
               </label>
-              <span className="rounded-full bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700">
+              <span
+                className={`rounded-full px-4 py-2 text-xs font-semibold ${
+                  isDark ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-700"
+                }`}
+              >
                 {filteredAgents.length} match{filteredAgents.length === 1 ? "" : "es"}
               </span>
             </div>
@@ -444,34 +517,53 @@ export default function Home() {
                   .toUpperCase() || "HR";
 
               return (
-                <article
-                  key={agent.linkedin}
-                  className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
-                >
+                <article key={agent.linkedin} className={cardClass}>
                   <div className="flex gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-800">
+                    <div
+                      className={`flex h-12 w-12 items-center justify-center rounded-full text-sm font-semibold ${
+                        isDark ? "bg-emerald-900/40 text-emerald-100" : "bg-emerald-100 text-emerald-800"
+                      }`}
+                    >
                       {initials}
                     </div>
                     <div className="flex-1">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-lg font-semibold text-slate-900">{agent.name}</h3>
-                            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                            <h3
+                              className={`text-lg font-semibold ${
+                                isDark ? "text-slate-50" : "text-slate-900"
+                              }`}
+                            >
+                              {agent.name}
+                            </h3>
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                isDark ? "bg-emerald-900/40 text-emerald-100" : "bg-emerald-50 text-emerald-700"
+                              }`}
+                            >
                               {agent.role || "HR Agent"}
                             </span>
                           </div>
-                          <p className="text-sm text-slate-600">{agent.location}</p>
+                          <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                            {agent.location}
+                          </p>
                         </div>
                         <div className="flex items-center gap-3">
-                          <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-800">
+                          <div
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                              isDark ? "bg-slate-800 text-slate-100" : "bg-slate-100 text-slate-800"
+                            }`}
+                          >
                             {avg ? `★ ${avg} / 5` : "No ratings yet"}
                           </div>
                           <a
                             href={agent.linkedin}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 underline-offset-4 transition hover:text-emerald-800"
+                            className={`inline-flex items-center gap-2 text-sm font-semibold underline-offset-4 transition ${
+                              isDark ? "text-emerald-200 hover:text-emerald-100" : "text-emerald-700 hover:text-emerald-800"
+                            }`}
                           >
                             View LinkedIn
                             <span aria-hidden>↗</span>
@@ -479,21 +571,32 @@ export default function Home() {
                         </div>
                       </div>
                       <div className="mt-3 space-y-1">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">User comment</p>
-                        <p className="text-sm leading-relaxed text-slate-700">{agent.summary}</p>
+                        <p
+                          className={`text-xs font-semibold uppercase tracking-wide ${
+                            isDark ? "text-slate-400" : "text-slate-500"
+                          }`}
+                        >
+                          User comment
+                        </p>
+                        <p
+                          className={`text-sm leading-relaxed ${
+                            isDark ? "text-slate-200" : "text-slate-700"
+                          }`}
+                        >
+                          {agent.summary}
+                        </p>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {agent.tags.length ? (
                           agent.tags.map((tag) => (
-                            <span
-                              key={tag}
-                              className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700"
-                            >
+                            <span key={tag} className={chipClass}>
                               {tag}
                             </span>
                           ))
                         ) : (
-                          <span className="text-xs text-slate-500">No focus areas added.</span>
+                          <span className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+                            No focus areas added.
+                          </span>
                         )}
                       </div>
                       {flaggedIssues.length > 0 && (
@@ -501,7 +604,9 @@ export default function Home() {
                           {[...new Set(flaggedIssues)].map((issue) => (
                             <span
                               key={issue}
-                              className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-700"
+                              className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+                                isDark ? "bg-red-900/40 text-red-100" : "bg-red-50 text-red-700"
+                              }`}
                             >
                               {issue}
                             </span>
@@ -511,38 +616,71 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="mt-6 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div
+                    className={`mt-6 space-y-3 rounded-2xl border p-4 ${
+                      isDark ? "border-slate-800 bg-slate-900/70" : "border-slate-200 bg-slate-50"
+                    }`}
+                  >
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-slate-900">Community experiences</p>
-                      <p className="text-xs text-slate-600">{entries.length} submission(s)</p>
+                      <p className={`text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}>
+                        Community experiences
+                      </p>
+                      <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                        {entries.length} submission(s)
+                      </p>
                     </div>
                     {entries.length > 0 ? (
-                      <div className="space-y-3 border-t border-slate-200 pt-3">
+                      <div className={`space-y-3 border-t pt-3 ${isDark ? "border-slate-800" : "border-slate-200"}`}>
                         {entries.slice(0, 3).map((entry, idx) => (
-                          <div key={idx} className="rounded-xl bg-white px-4 py-3 shadow-[0_4px_10px_-8px_rgba(0,0,0,0.4)]">
-                            <div className="flex items-center gap-2 text-xs text-slate-600">
-                              <span className="font-semibold text-emerald-700">★ {entry.rating}</span>
+                          <div
+                            key={idx}
+                            className={`rounded-xl px-4 py-3 shadow-[0_4px_10px_-8px_rgba(0,0,0,0.4)] ${
+                              isDark ? "bg-slate-900/80" : "bg-white"
+                            }`}
+                          >
+                            <div className={`flex items-center gap-2 text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                              <span className={`font-semibold ${isDark ? "text-emerald-200" : "text-emerald-700"}`}>
+                                ★ {entry.rating}
+                              </span>
                               <span>·</span>
                               <span>{entry.createdAt.toLocaleDateString()}</span>
                             </div>
-                            <p className="mt-1 text-sm text-slate-800">
+                            <p className={`mt-1 text-sm ${isDark ? "text-slate-100" : "text-slate-800"}`}>
                               {entry.notes || "No additional notes provided."}
                             </p>
-                            <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
-                              {entry.ghosted && <span className="rounded-full bg-slate-100 px-2 py-1">Ghosted</span>}
-                              {entry.fakeJob && <span className="rounded-full bg-slate-100 px-2 py-1">Fake job</span>}
-                              {entry.noResponse && <span className="rounded-full bg-slate-100 px-2 py-1">No echo</span>}
+                            <div className={`mt-2 flex flex-wrap gap-2 text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                              {entry.ghosted && (
+                                <span className={`rounded-full px-2 py-1 ${isDark ? "bg-slate-800" : "bg-slate-100"}`}>
+                                  Ghosted
+                                </span>
+                              )}
+                              {entry.fakeJob && (
+                                <span className={`rounded-full px-2 py-1 ${isDark ? "bg-slate-800" : "bg-slate-100"}`}>
+                                  Fake job
+                                </span>
+                              )}
+                              {entry.noResponse && (
+                                <span className={`rounded-full px-2 py-1 ${isDark ? "bg-slate-800" : "bg-slate-100"}`}>
+                                  No echo
+                                </span>
+                              )}
                             </div>
                           </div>
                         ))}
                         {entries.length > 3 && (
-                          <div className="text-right text-xs text-slate-600">
+                          <div className={`text-right text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                             +{entries.length - 3} more submission(s)
                           </div>
                         )}
                       </div>
                     ) : (
-                      <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                      <div
+                        className={`rounded-xl border border-dashed px-4 py-3 text-sm ${
+                          isDark
+                            ? "border-slate-800 bg-slate-900/50 text-slate-400"
+                            : "border-slate-200 bg-white text-slate-600"
+                        }`}
+                      >
                         No experiences shared yet for this agent.
                       </div>
                     )}
@@ -551,7 +689,13 @@ export default function Home() {
               );
             })}
             {!filteredAgents.length && (
-              <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-600">
+              <div
+                className={`rounded-3xl border border-dashed p-8 text-center text-sm ${
+                  isDark
+                    ? "border-slate-800 bg-slate-900/60 text-slate-400"
+                    : "border-slate-300 bg-white text-slate-600"
+                }`}
+              >
                 No matching agents yet. Add a profile or adjust your search.
               </div>
             )}
