@@ -88,7 +88,7 @@ const starterAgents: Agent[] = [
 
 const seedExperiences: Record<string, Experience[]> = {};
 
-const quickTags = ["Ghosted","Resume taker", "Slow response", "Good experience", "Got interview/job"];
+const quickTags = ["Ghosted", "Resume taker", "Slow response", "Good experience", "Got interview/job"];
 
 export default function Home() {
   const [agents, setAgents] = useState<Agent[]>(starterAgents);
@@ -205,9 +205,9 @@ export default function Home() {
 
   const handleInput =
     (key: "name" | "role" | "location" | "linkedin" | "summary" | "tags") =>
-    (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      setFormData((prev) => ({ ...prev, [key]: e.target.value }));
-    };
+      (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        setFormData((prev) => ({ ...prev, [key]: e.target.value }));
+      };
 
   const handleRating = (value: number) => {
     setFormData((prev) => ({ ...prev, rating: value }));
@@ -263,14 +263,14 @@ export default function Home() {
         prev.map((agent) =>
           agent.id === existingAgent.id
             ? {
-                ...agent,
-                name: formData.name.trim() || agent.name,
-                role: formData.role.trim() || agent.role,
-                location: formData.location.trim() || agent.location,
-                summary: formData.summary.trim() || agent.summary,
-                tags: mergedTags,
-                createdAt,
-              }
+              ...agent,
+              name: formData.name.trim() || agent.name,
+              role: formData.role.trim() || agent.role,
+              location: formData.location.trim() || agent.location,
+              summary: formData.summary.trim() || agent.summary,
+              tags: mergedTags,
+              createdAt,
+            }
             : agent
         )
       );
@@ -399,11 +399,10 @@ export default function Home() {
         <button
           type="button"
           onClick={() => setTheme(isDark ? "light" : "dark")}
-          className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${
-            isDark
+          className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${isDark
               ? "border-slate-700 bg-slate-800 text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
               : "border-slate-200 bg-slate-50 text-slate-800 hover:border-emerald-300 hover:text-emerald-700"
-          }`}
+            }`}
         >
           {isDark ? "Switch to light mode" : "Switch to dark mode"}
         </button>
@@ -412,16 +411,14 @@ export default function Home() {
         <header className={`${panelClass} p-8`}>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-500">HR Agent Directory</p>
           <h1
-            className={`mt-3 text-3xl font-semibold leading-tight sm:text-4xl ${
-              isDark ? "text-slate-50" : "text-slate-900"
-            }`}
+            className={`mt-3 text-3xl font-semibold leading-tight sm:text-4xl ${isDark ? "text-slate-50" : "text-slate-900"
+              }`}
           >
             Share HR agents, then see how others experienced them.
           </h1>
           <p
-            className={`mt-3 max-w-3xl text-base leading-relaxed ${
-              isDark ? "text-slate-300" : "text-slate-600"
-            }`}
+            className={`mt-3 max-w-3xl text-base leading-relaxed ${isDark ? "text-slate-300" : "text-slate-600"
+              }`}
           >
             Layered like a social feed: add a profile with your own comments, search quickly, and browse cards that feel
             familiar to Facebook/LinkedIn.
@@ -437,9 +434,8 @@ export default function Home() {
               </h2>
             </div>
             <span
-              className={`rounded-full px-3 py-1 text-xs font-medium ${
-                isDark ? "bg-emerald-900/40 text-emerald-100" : "bg-emerald-50 text-emerald-700"
-              }`}
+              className={`rounded-full px-3 py-1 text-xs font-medium ${isDark ? "bg-emerald-900/40 text-emerald-100" : "bg-emerald-50 text-emerald-700"
+                }`}
             >
               New
             </span>
@@ -510,6 +506,9 @@ export default function Home() {
                 className={`${inputClass} min-h-[120px]`}
                 placeholder="Share your experience or assessment—responsiveness, honesty, process…"
               />
+              <label className={labelClass} htmlFor="quickTags">
+                Tags
+              </label>
               <div className="flex flex-wrap gap-2 pt-1">
                 {quickTags.map((tag) => {
                   const active = selectedQuickTags.includes(tag);
@@ -518,15 +517,14 @@ export default function Home() {
                       key={tag}
                       type="button"
                       onClick={() => toggleQuickTag(tag)}
-                      className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                        active
+                      className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${active
                           ? isDark
                             ? "border-emerald-400 bg-emerald-900/30 text-emerald-100"
                             : "border-emerald-400 bg-emerald-50 text-emerald-700"
                           : isDark
                             ? "border-slate-700 bg-slate-800 text-slate-200 hover:border-emerald-300"
                             : "border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-200"
-                      }`}
+                        }`}
                     >
                       {tag}
                     </button>
@@ -562,15 +560,14 @@ export default function Home() {
                   return (
                     <label
                       key={value}
-                      className={`flex cursor-pointer items-center gap-1 rounded-full border px-3 py-2 text-sm font-semibold transition ${
-                        active
+                      className={`flex cursor-pointer items-center gap-1 rounded-full border px-3 py-2 text-sm font-semibold transition ${active
                           ? isDark
                             ? "border-emerald-400 bg-emerald-900/30 text-emerald-100"
                             : "border-emerald-400 bg-emerald-50 text-emerald-700"
                           : isDark
                             ? "border-slate-700 bg-slate-900 text-slate-200 hover:border-emerald-300"
                             : "border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-200"
-                      }`}
+                        }`}
                     >
                       <input
                         type="radio"
@@ -611,9 +608,8 @@ export default function Home() {
               </p>
             </div>
             <span
-              className={`rounded-full px-4 py-2 text-xs font-semibold ${
-                isDark ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-700"
-              }`}
+              className={`rounded-full px-4 py-2 text-xs font-semibold ${isDark ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-700"
+                }`}
             >
               {filteredAgents.length} match{filteredAgents.length === 1 ? "" : "es"}
             </span>
@@ -640,19 +636,17 @@ export default function Home() {
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <label
-                className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] ${
-                  isDark ? "text-slate-300" : "text-slate-500"
-                }`}
+                className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] ${isDark ? "text-slate-300" : "text-slate-500"
+                  }`}
               >
                 Sort
                 <select
                   value={sortOption}
                   onChange={(e) => setSortOption(e.target.value as typeof sortOption)}
-                  className={`rounded-full border px-3 py-2 text-xs font-semibold outline-none transition ${
-                    isDark
+                  className={`rounded-full border px-3 py-2 text-xs font-semibold outline-none transition ${isDark
                       ? "border-slate-700 bg-slate-900 text-slate-100 focus:border-emerald-400"
                       : "border-slate-200 bg-slate-50 text-slate-800 focus:border-emerald-400"
-                  }`}
+                    }`}
                 >
                   <option value="latest">Latest submit</option>
                   <option value="tags-desc">Most tag votes</option>
@@ -663,9 +657,8 @@ export default function Home() {
                 </select>
               </label>
               <span
-                className={`rounded-full px-4 py-2 text-xs font-semibold ${
-                  isDark ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-700"
-                }`}
+                className={`rounded-full px-4 py-2 text-xs font-semibold ${isDark ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-700"
+                  }`}
               >
                 {filteredAgents.length} match{filteredAgents.length === 1 ? "" : "es"}
               </span>
@@ -692,9 +685,8 @@ export default function Home() {
                 <article key={agent.id} className={cardClass}>
                   <div className="flex gap-4">
                     <div
-                      className={`flex h-12 w-12 items-center justify-center rounded-full text-sm font-semibold ${
-                        isDark ? "bg-emerald-900/40 text-emerald-100" : "bg-emerald-100 text-emerald-800"
-                      }`}
+                      className={`flex h-12 w-12 items-center justify-center rounded-full text-sm font-semibold ${isDark ? "bg-emerald-900/40 text-emerald-100" : "bg-emerald-100 text-emerald-800"
+                        }`}
                     >
                       {initials}
                     </div>
@@ -703,16 +695,14 @@ export default function Home() {
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <h3
-                              className={`text-lg font-semibold ${
-                                isDark ? "text-slate-50" : "text-slate-900"
-                              }`}
+                              className={`text-lg font-semibold ${isDark ? "text-slate-50" : "text-slate-900"
+                                }`}
                             >
                               {agent.name}
                             </h3>
                             <span
-                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                                isDark ? "bg-emerald-900/40 text-emerald-100" : "bg-emerald-50 text-emerald-700"
-                              }`}
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${isDark ? "bg-emerald-900/40 text-emerald-100" : "bg-emerald-50 text-emerald-700"
+                                }`}
                             >
                               {agent.role || "HR Agent"}
                             </span>
@@ -726,19 +716,18 @@ export default function Home() {
                               ))}
                             </div>
                           )}
-                           <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                              {agent.location}
-                            </p>
-                           <p className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}>
-                             {entries.length} submission{entries.length === 1 ? "" : "s"}
-                             {tagVotes ? ` · ${tagVotes} tag vote${tagVotes === 1 ? "" : "s"}` : ""}
-                           </p>
-                         </div>
+                          <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                            {agent.location}
+                          </p>
+                          <p className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+                            {entries.length} submission{entries.length === 1 ? "" : "s"}
+                            {tagVotes ? ` · ${tagVotes} tag vote${tagVotes === 1 ? "" : "s"}` : ""}
+                          </p>
+                        </div>
                         <div className="flex items-center gap-3">
                           <div
-                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                              isDark ? "bg-slate-800 text-slate-100" : "bg-slate-100 text-slate-800"
-                            }`}
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${isDark ? "bg-slate-800 text-slate-100" : "bg-slate-100 text-slate-800"
+                              }`}
                           >
                             {avg ? `★ ${avg} / 5` : "No ratings yet"}
                           </div>
@@ -746,9 +735,8 @@ export default function Home() {
                             href={agent.linkedin}
                             target="_blank"
                             rel="noreferrer"
-                            className={`inline-flex items-center gap-2 text-sm font-semibold underline-offset-4 transition ${
-                              isDark ? "text-emerald-200 hover:text-emerald-100" : "text-emerald-700 hover:text-emerald-800"
-                            }`}
+                            className={`inline-flex items-center gap-2 text-sm font-semibold underline-offset-4 transition ${isDark ? "text-emerald-200 hover:text-emerald-100" : "text-emerald-700 hover:text-emerald-800"
+                              }`}
                           >
                             View LinkedIn
                             <span aria-hidden>↗</span>
@@ -759,9 +747,8 @@ export default function Home() {
                   </div>
 
                   <details
-                    className={`mt-6 space-y-3 rounded-2xl border p-4 ${
-                      isDark ? "border-slate-800 bg-slate-900/70" : "border-slate-200 bg-slate-50"
-                    }`}
+                    className={`mt-6 space-y-3 rounded-2xl border p-4 ${isDark ? "border-slate-800 bg-slate-900/70" : "border-slate-200 bg-slate-50"
+                      }`}
                   >
                     <summary className="flex cursor-pointer list-none items-center justify-between">
                       <p className={`text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}>
@@ -777,9 +764,8 @@ export default function Home() {
                         {entries.map((entry, idx) => (
                           <div
                             key={idx}
-                            className={`rounded-xl px-4 py-3 shadow-[0_4px_10px_-8px_rgba(0,0,0,0.4)] ${
-                              isDark ? "bg-slate-900/80" : "bg-white"
-                            }`}
+                            className={`rounded-xl px-4 py-3 shadow-[0_4px_10px_-8px_rgba(0,0,0,0.4)] ${isDark ? "bg-slate-900/80" : "bg-white"
+                              }`}
                           >
                             <div className={`flex items-center gap-2 text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                               <span className={`font-semibold ${isDark ? "text-emerald-200" : "text-emerald-700"}`}>
@@ -793,9 +779,8 @@ export default function Home() {
                             </p>
                             {submissionTags(entry).length > 0 && (
                               <div
-                                className={`mt-2 flex flex-wrap gap-2 text-xs ${
-                                  isDark ? "text-slate-400" : "text-slate-600"
-                                }`}
+                                className={`mt-2 flex flex-wrap gap-2 text-xs ${isDark ? "text-slate-400" : "text-slate-600"
+                                  }`}
                               >
                                 {submissionTags(entry).map((tag) => (
                                   <span
@@ -812,11 +797,10 @@ export default function Home() {
                       </div>
                     ) : (
                       <div
-                        className={`rounded-xl border border-dashed px-4 py-3 text-sm ${
-                          isDark
+                        className={`rounded-xl border border-dashed px-4 py-3 text-sm ${isDark
                             ? "border-slate-800 bg-slate-900/50 text-slate-400"
                             : "border-slate-200 bg-white text-slate-600"
-                        }`}
+                          }`}
                       >
                         No experiences shared yet for this agent.
                       </div>
@@ -827,11 +811,10 @@ export default function Home() {
             })}
             {!filteredAgents.length && (
               <div
-                className={`rounded-3xl border border-dashed p-8 text-center text-sm ${
-                  isDark
+                className={`rounded-3xl border border-dashed p-8 text-center text-sm ${isDark
                     ? "border-slate-800 bg-slate-900/60 text-slate-400"
                     : "border-slate-300 bg-white text-slate-600"
-                }`}
+                  }`}
               >
                 No matching agents yet. Add a profile or adjust your search.
               </div>
