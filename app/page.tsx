@@ -22,8 +22,76 @@ type Experience = {
   createdAt: Date;
 };
 
-const starterAgents: Agent[] = [
+function normalizeLinkedin(value: string) {
+  return value.trim().toLowerCase().replace(/\/+$/, "");
+}
 
+function mergeAgentsByLinkedin(inputAgents: Agent[], inputExperiences: Record<string, Experience[]>) {
+  const groups = new Map<string, { agent: Agent; ids: string[] }>();
+
+  for (const agent of inputAgents) {
+    const key = normalizeLinkedin(agent.linkedin) || agent.id;
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, { agent, ids: [agent.id] });
+      continue;
+    }
+
+    existing.ids.push(agent.id);
+
+    const latest = agent.createdAt > existing.agent.createdAt ? agent : existing.agent;
+    const createdAt = new Date(Math.max(existing.agent.createdAt.getTime(), agent.createdAt.getTime()));
+    const tags = Array.from(new Set([...(existing.agent.tags ?? []), ...(agent.tags ?? [])]));
+
+    existing.agent = { ...latest, createdAt, tags };
+  }
+
+  const mergedAgents: Agent[] = [];
+  const mergedExperiences: Record<string, Experience[]> = {};
+
+  for (const { agent, ids } of groups.values()) {
+    mergedAgents.push(agent);
+    const items = ids.flatMap((id) => inputExperiences[id] || []);
+    items.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    mergedExperiences[agent.id] = items;
+  }
+
+  return { agents: mergedAgents, experiences: mergedExperiences };
+}
+
+const starterAgents: Agent[] = [
+  {
+    id: "mara-chen",
+    name: "Mara Chen",
+    role: "Senior HR Business Partner",
+    location: "Singapore • APAC",
+    linkedin: "https://www.linkedin.com/in/mara-chen",
+    summary:
+      "Builds people systems for hyper-growth teams and guides leaders through restructures with clarity and calm.",
+    tags: ["hyper-growth", "org design", "people ops"],
+    createdAt: new Date("2025-01-10"),
+  },
+  {
+    id: "andre-lewis",
+    name: "Andre Lewis",
+    role: "Technical Recruiter",
+    location: "Remote • Americas",
+    linkedin: "https://www.linkedin.com/in/andre-lewis",
+    summary: "Full-cycle recruiter for engineering orgs with a track record in startup-to-scale transitions.",
+    tags: ["recruiting", "eng hiring", "process design"],
+    createdAt: new Date("2025-01-08"),
+  },
+  {
+    id: "priya-raman",
+    name: "Priya Raman",
+    role: "Talent Development Lead",
+    location: "London • EMEA",
+    linkedin: "https://www.linkedin.com/in/priya-raman",
+    summary:
+      "Designs learning programs and leadership pipelines; great at distilling feedback into action plans.",
+    tags: ["L&D", "leadership", "coaching"],
+    createdAt: new Date("2025-01-05"),
+  },
 ];
 
 const seedExperiences: Record<string, Experience[]> = {
@@ -144,8 +212,9 @@ export default function Home() {
         }
 
         if (cancelled) return;
-        setAgents(nextAgents);
-        setExperiences(nextExperiences);
+        const merged = mergeAgentsByLinkedin(nextAgents, nextExperiences);
+        setAgents(merged.agents);
+        setExperiences(merged.experiences);
       } catch {
         // Fall back to seeded in-memory data when API is unavailable (e.g. no DynamoDB env vars yet).
       }
@@ -205,61 +274,119 @@ export default function Home() {
     e.preventDefault();
     if (!formData.name || !formData.linkedin) return;
 
-    const agentId = crypto.randomUUID();
     const createdAt = new Date();
-    const nextAgent: Agent = {
-      id: agentId,
-      name: formData.name.trim(),
-      role: formData.role.trim() || "HR Agent",
-      location: formData.location.trim() || "—",
-      linkedin: formData.linkedin.trim(),
-      summary: formData.summary.trim() || "No summary yet.",
-      tags: Array.from(
-        new Set([
-          ...selectedQuickTags,
-          ...formData.tags
-            .split(",")
-            .map((tag) => tag.trim())
-            .filter(Boolean),
-        ])
-      ),
-      createdAt,
-    };
-    setAgents((prev) => [nextAgent, ...prev]);
-
     const ratingValue = Number(formData.rating);
-    if (ratingValue >= 1 && ratingValue <= 5) {
-      const firstExperience: Experience = {
-        rating: ratingValue,
-        notes: "",
-        ghosted: false,
-        fakeJob: false,
-        noResponse: false,
+    const submittedTags = Array.from(
+      new Set([
+        ...selectedQuickTags,
+        ...formData.tags
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+      ])
+    );
+
+    const linkedin = formData.linkedin.trim();
+    const existingAgent = agents.find(
+      (agent) => normalizeLinkedin(agent.linkedin) === normalizeLinkedin(linkedin)
+    );
+
+    if (existingAgent) {
+      const mergedTags = Array.from(new Set([...(existingAgent.tags ?? []), ...submittedTags]));
+
+      setAgents((prev) =>
+        prev.map((agent) =>
+          agent.id === existingAgent.id
+            ? {
+                ...agent,
+                name: formData.name.trim() || agent.name,
+                role: formData.role.trim() || agent.role,
+                location: formData.location.trim() || agent.location,
+                summary: formData.summary.trim() || agent.summary,
+                tags: mergedTags,
+                createdAt,
+              }
+            : agent
+        )
+      );
+
+      if (ratingValue >= 1 && ratingValue <= 5) {
+        const experience: Experience = {
+          rating: ratingValue,
+          notes: "",
+          ghosted: false,
+          fakeJob: false,
+          noResponse: false,
+          createdAt,
+        };
+
+        setExperiences((prev) => ({
+          ...prev,
+          [existingAgent.id]: [experience, ...(prev[existingAgent.id] || [])],
+        }));
+
+        void fetch(`/api/agents/${existingAgent.id}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            rating: ratingValue,
+            notes: "",
+            ghosted: false,
+            fakeJob: false,
+            noResponse: false,
+            createdAt: createdAt.toISOString(),
+          }),
+        }).catch(() => {
+          // Fall back to local-only state when API is unavailable.
+        });
+      }
+    } else {
+      const agentId = crypto.randomUUID();
+      const nextAgent: Agent = {
+        id: agentId,
+        name: formData.name.trim(),
+        role: formData.role.trim() || "HR Agent",
+        location: formData.location.trim() || "—",
+        linkedin,
+        summary: formData.summary.trim() || "No summary yet.",
+        tags: submittedTags,
         createdAt,
       };
-      setExperiences((prev) => ({
-        ...prev,
-        [nextAgent.id]: [firstExperience, ...(prev[nextAgent.id] || [])],
-      }));
-    }
+      setAgents((prev) => [nextAgent, ...prev]);
 
-    void fetch("/api/agents", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        id: nextAgent.id,
-        name: nextAgent.name,
-        role: nextAgent.role,
-        location: nextAgent.location,
-        linkedin: nextAgent.linkedin,
-        summary: nextAgent.summary,
-        tags: nextAgent.tags,
-        rating: ratingValue,
-        createdAt: createdAt.toISOString(),
-      }),
-    }).catch(() => {
-      // Fall back to local-only state when API is unavailable.
-    });
+      if (ratingValue >= 1 && ratingValue <= 5) {
+        const firstExperience: Experience = {
+          rating: ratingValue,
+          notes: "",
+          ghosted: false,
+          fakeJob: false,
+          noResponse: false,
+          createdAt,
+        };
+        setExperiences((prev) => ({
+          ...prev,
+          [nextAgent.id]: [firstExperience, ...(prev[nextAgent.id] || [])],
+        }));
+      }
+
+      void fetch("/api/agents", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: nextAgent.id,
+          name: nextAgent.name,
+          role: nextAgent.role,
+          location: nextAgent.location,
+          linkedin: nextAgent.linkedin,
+          summary: nextAgent.summary,
+          tags: nextAgent.tags,
+          rating: ratingValue,
+          createdAt: createdAt.toISOString(),
+        }),
+      }).catch(() => {
+        // Fall back to local-only state when API is unavailable.
+      });
+    }
 
     setFormData({
       name: "",
@@ -591,7 +718,7 @@ export default function Home() {
                   .toUpperCase() || "HR";
 
               return (
-                <article key={agent.linkedin} className={cardClass}>
+                <article key={agent.id} className={cardClass}>
                   <div className="flex gap-4">
                     <div
                       className={`flex h-12 w-12 items-center justify-center rounded-full text-sm font-semibold ${

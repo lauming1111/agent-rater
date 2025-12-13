@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  GetCommand,
   PutCommand,
   QueryCommand,
   ScanCommand,
@@ -201,3 +202,64 @@ export async function listAgentsWithExperiences(limit = 50) {
   return { agents: profiles, experiencesByAgentId };
 }
 
+export async function findAgentIdByLinkedin(linkedin: string) {
+  const ddb = getDocClient();
+  const tableName = getTableName();
+
+  const res = await ddb.send(
+    new ScanCommand({
+      TableName: tableName,
+      Limit: 1,
+      FilterExpression: "#sk = :profile AND #linkedin = :linkedin",
+      ExpressionAttributeNames: { "#sk": "SK", "#linkedin": "linkedin" },
+      ExpressionAttributeValues: { ":profile": "PROFILE", ":linkedin": linkedin },
+    })
+  );
+
+  const item = res.Items?.[0] as Record<string, unknown> | undefined;
+  const partitionKey = item?.PK;
+  if (typeof partitionKey !== "string") return null;
+  return parseAgentId(partitionKey);
+}
+
+export async function getAgentProfile(agentId: string) {
+  const ddb = getDocClient();
+  const tableName = getTableName();
+
+  const res = await ddb.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: { PK: pk(agentId), SK: "PROFILE" },
+    })
+  );
+
+  const item = res.Item as Record<string, unknown> | undefined;
+  if (!item) return null;
+
+  return {
+    id: agentId,
+    name: String(item.name ?? ""),
+    role: String(item.role ?? ""),
+    location: String(item.location ?? ""),
+    linkedin: String(item.linkedin ?? ""),
+    summary: String(item.summary ?? ""),
+    tags: Array.isArray(item.tags) ? (item.tags as string[]) : [],
+    createdAt: String(item.createdAt ?? ""),
+  } satisfies AgentProfile;
+}
+
+export async function putAgentProfile(profile: AgentProfile) {
+  const ddb = getDocClient();
+  const tableName = getTableName();
+
+  await ddb.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: {
+        PK: pk(profile.id),
+        SK: "PROFILE",
+        ...profile,
+      },
+    })
+  );
+}

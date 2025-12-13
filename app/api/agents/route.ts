@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 
-import { createAgentWithInitialExperience, listAgentsWithExperiences } from "@/lib/agents";
+import {
+  addExperience,
+  createAgentWithInitialExperience,
+  findAgentIdByLinkedin,
+  getAgentProfile,
+  listAgentsWithExperiences,
+  putAgentProfile,
+} from "@/lib/agents";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,8 +48,11 @@ export async function POST(req: Request) {
     createdAt?: string;
   };
 
+  const normalizeLinkedin = (value: string) => value.trim().toLowerCase().replace(/\/+$/, "");
+
   const name = typeof input.name === "string" ? input.name.trim() : "";
-  const linkedin = typeof input.linkedin === "string" ? input.linkedin.trim() : "";
+  const linkedinRaw = typeof input.linkedin === "string" ? input.linkedin.trim() : "";
+  const linkedin = linkedinRaw ? normalizeLinkedin(linkedinRaw) : "";
   if (!name) return jsonError(400, "Missing name");
   if (!linkedin) return jsonError(400, "Missing linkedin");
 
@@ -77,6 +87,38 @@ export async function POST(req: Request) {
       : undefined;
 
   try {
+    const existingId = await findAgentIdByLinkedin(linkedin);
+    if (existingId) {
+      const profile = await getAgentProfile(existingId);
+      let responseTags = tags;
+      if (profile) {
+        const mergedTags = Array.from(new Set([...(profile.tags ?? []), ...tags]));
+        responseTags = mergedTags;
+        await putAgentProfile({
+          ...profile,
+          name,
+          role,
+          location,
+          linkedin,
+          summary,
+          tags: mergedTags,
+          createdAt,
+        });
+      }
+
+      if (experience) {
+        await addExperience(existingId, experience);
+      }
+
+      return NextResponse.json(
+        {
+          agent: { id: existingId, name, role, location, linkedin, summary, tags: responseTags, createdAt },
+          experience,
+        },
+        { status: 200 }
+      );
+    }
+
     const res = await createAgentWithInitialExperience({
       agent: { id, name, role, location, linkedin, summary, tags, createdAt },
       experience,
@@ -94,4 +136,3 @@ export async function POST(req: Request) {
     return jsonError(503, message);
   }
 }
-
