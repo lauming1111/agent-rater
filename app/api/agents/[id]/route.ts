@@ -39,6 +39,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     rating?: number;
     notes?: string;
     tags?: string[] | string;
+    countryRegion?: string;
     ghosted?: boolean;
     fakeJob?: boolean;
     noResponse?: boolean;
@@ -58,12 +59,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
             .map((t) => t.trim())
             .filter(Boolean)
         : [];
+  const countryRegion = (typeof input.countryRegion === "string" && input.countryRegion.trim()) || "unknown";
 
   try {
     await addExperience(id, {
       rating,
       notes: typeof input.notes === "string" ? input.notes : "",
       tags,
+      countryRegion,
       ghosted: Boolean(input.ghosted),
       fakeJob: Boolean(input.fakeJob),
       noResponse: Boolean(input.noResponse),

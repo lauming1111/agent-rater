@@ -17,6 +17,7 @@ type Experience = {
   rating: number;
   notes: string;
   tags: string[];
+  countryRegion: string;
   ghosted: boolean;
   fakeJob: boolean;
   noResponse: boolean;
@@ -99,6 +100,14 @@ function quickTagVoteCountFor(items: Experience[], quickTags: string[]) {
   return Object.values(counts).reduce((sum, value) => sum + value, 0);
 }
 
+function normalizeCountryRegion(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "unknown";
+  if (trimmed === "--") return "unknown";
+  if (trimmed.toLowerCase() === "unknown") return "unknown";
+  return trimmed;
+}
+
 const starterAgents: Agent[] = [
 ];
 
@@ -166,6 +175,7 @@ export default function Home() {
               rating: number;
               notes: string;
               tags?: string[];
+              countryRegion?: string;
               ghosted: boolean;
               fakeJob: boolean;
               noResponse: boolean;
@@ -195,6 +205,7 @@ export default function Home() {
             rating: Number(item.rating ?? 0),
             notes: item.notes ?? "",
             tags: Array.isArray(item.tags) ? item.tags : [],
+            countryRegion: normalizeCountryRegion(item.countryRegion || ""),
             ghosted: Boolean(item.ghosted),
             fakeJob: Boolean(item.fakeJob),
             noResponse: Boolean(item.noResponse),
@@ -284,6 +295,7 @@ export default function Home() {
 
     const createdAt = new Date();
     const ratingValue = Number(formData.rating);
+    const countryRegion = normalizeCountryRegion(formData.location);
     const focusAreaTags = filterOutQuickTags(
       formData.tags
         .split(",")
@@ -309,7 +321,7 @@ export default function Home() {
               ...agent,
               name: formData.name.trim() || agent.name,
               role: formData.role.trim() || agent.role,
-              location: formData.location.trim() || agent.location,
+              location: agent.location || "--",
               summary: formData.summary.trim() || agent.summary,
               tags: mergedTags,
               createdAt,
@@ -323,6 +335,7 @@ export default function Home() {
           rating: ratingValue,
           notes: formData.summary.trim(),
           tags: commentTags,
+          countryRegion,
           ghosted: false,
           fakeJob: false,
           noResponse: false,
@@ -341,6 +354,7 @@ export default function Home() {
             rating: ratingValue,
             notes: formData.summary.trim(),
             tags: commentTags,
+            countryRegion,
             ghosted: false,
             fakeJob: false,
             noResponse: false,
@@ -356,7 +370,7 @@ export default function Home() {
         id: agentId,
         name: formData.name.trim(),
         role: formData.role.trim() || "HR Agent",
-        location: formData.location.trim() || "—",
+        location: countryRegion,
         linkedin,
         summary: formData.summary.trim() || "No summary yet.",
         tags: focusAreaTags,
@@ -369,6 +383,7 @@ export default function Home() {
           rating: ratingValue,
           notes: formData.summary.trim(),
           tags: commentTags,
+          countryRegion,
           ghosted: false,
           fakeJob: false,
           noResponse: false,
@@ -394,6 +409,7 @@ export default function Home() {
           rating: ratingValue,
           notes: formData.summary.trim(),
           experienceTags: commentTags,
+          countryRegion,
           createdAt: createdAt.toISOString(),
         }),
       }).catch(() => {
@@ -730,6 +746,19 @@ export default function Home() {
               );
               const tagVotes = tagPairs.reduce((sum, [, count]) => sum + count, 0);
               const areaTags = filterOutQuickTags(agent.tags || []);
+              const crTags = entries.reduce<Record<string, number>>((acc, entry) => {
+                const key = normalizeCountryRegion(entry.countryRegion || "");
+                acc[key] = (acc[key] ?? 0) + 1;
+                return acc;
+              }, {});
+              if (!Object.keys(crTags).length) crTags.unknown = 1;
+              const crPairs = Object.entries(crTags).sort(
+                (a, b) => b[1] - a[1] || a[0].localeCompare(b[0])
+              );
+              const hasKnownCrTags = crPairs.some(([tag]) => tag !== "unknown");
+              const displayCrPairs = hasKnownCrTags
+                ? crPairs.filter(([tag]) => tag !== "unknown")
+                : crPairs;
               const initials =
                 agent.name
                   .split(" ")
@@ -780,6 +809,24 @@ export default function Home() {
                               ))}
                             </div>
                           )}
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span
+                              className={`text-[10px] font-semibold uppercase tracking-wide ${
+                                isDark ? "text-slate-400" : "text-slate-500"
+                              }`}
+                            >
+                              Country/Region:
+                            </span>
+                            {!hasKnownCrTags ? (
+                              <span className={chipClass}>unknown</span>
+                            ) : (
+                              displayCrPairs.slice(0, 4).map(([tag, count]) => (
+                                <span key={tag} className={chipClass}>
+                                  {tag} x{count}
+                                </span>
+                              ))
+                            )}
+                          </div>
                           {tagPairs.length > 0 && (
                             <div className="mt-2 flex flex-wrap items-center gap-2">
                               <span

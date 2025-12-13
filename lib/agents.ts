@@ -26,6 +26,7 @@ export type Experience = {
   rating: number;
   notes: string;
   tags: string[];
+  countryRegion: string;
   ghosted: boolean;
   fakeJob: boolean;
   noResponse: boolean;
@@ -133,6 +134,7 @@ export async function getAgentWithExperiences(agentId: string) {
         rating: Number(exp.rating ?? 0),
         notes: String(exp.notes ?? ""),
         tags: Array.isArray(exp.tags) ? (exp.tags as string[]) : [],
+        countryRegion: String(exp.countryRegion ?? "unknown"),
         ghosted: Boolean(exp.ghosted),
         fakeJob: Boolean(exp.fakeJob),
         noResponse: Boolean(exp.noResponse),
@@ -205,6 +207,7 @@ export async function listAgentsWithExperiences(limit = 50) {
           rating: Number(item.rating ?? 0),
           notes: String(item.notes ?? ""),
           tags: Array.isArray(item.tags) ? (item.tags as string[]) : [],
+          countryRegion: String(item.countryRegion ?? "unknown"),
           ghosted: Boolean(item.ghosted),
           fakeJob: Boolean(item.fakeJob),
           noResponse: Boolean(item.noResponse),

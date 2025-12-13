@@ -46,6 +46,8 @@ export async function POST(req: Request) {
     tags?: string[] | string;
     rating?: number;
     notes?: string;
+    experienceTags?: string[] | string;
+    countryRegion?: string;
     createdAt?: string;
   };
 
@@ -69,6 +71,15 @@ export async function POST(req: Request) {
             .map((t) => t.trim())
             .filter(Boolean)
         : [];
+  const experienceTags =
+    Array.isArray(input.experienceTags)
+      ? input.experienceTags.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim())
+      : typeof input.experienceTags === "string"
+        ? input.experienceTags
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean)
+        : [];
 
   const role = typeof input.role === "string" && input.role.trim() ? input.role.trim() : "HR Agent";
   const location = typeof input.location === "string" && input.location.trim() ? input.location.trim() : "Unknown";
@@ -76,12 +87,15 @@ export async function POST(req: Request) {
 
   const rating = typeof input.rating === "number" ? input.rating : undefined;
   const notes = typeof input.notes === "string" ? input.notes : "";
+  const countryRegion =
+    (typeof input.countryRegion === "string" && input.countryRegion.trim()) || location || "unknown";
   const experience =
     rating && rating >= 1 && rating <= 5
       ? {
           rating,
           notes,
-          tags,
+          tags: experienceTags.length ? experienceTags : tags,
+          countryRegion,
           ghosted: false,
           fakeJob: false,
           noResponse: false,
