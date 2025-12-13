@@ -97,7 +97,8 @@ export default function Home() {
   const [sortOption, setSortOption] = useState<
     "latest" | "rating-desc" | "rating-asc" | "tags-desc" | "name-asc" | "name-desc"
   >("latest");
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [themeMode, setThemeMode] = useState<"system" | "light" | "dark">("system");
+  const [systemTheme, setSystemTheme] = useState<"light" | "dark">("light");
   const [formData, setFormData] = useState({
     name: "",
     role: "",
@@ -192,6 +193,22 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!media) return;
+
+    const apply = () => setSystemTheme(media.matches ? "dark" : "light");
+    apply();
+
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", apply);
+      return () => media.removeEventListener("change", apply);
+    }
+
+    media.addListener(apply);
+    return () => media.removeListener(apply);
+  }, []);
+
   const filteredAgents = useMemo(() => {
     const term = search.toLowerCase();
     if (!term) return agents;
@@ -219,7 +236,8 @@ export default function Home() {
     );
   };
 
-  const isDark = theme === "dark";
+  const effectiveTheme = themeMode === "system" ? systemTheme : themeMode;
+  const isDark = effectiveTheme === "dark";
   const pageBg = isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900";
   const panelClass = isDark
     ? "rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-lg shadow-black/40"
@@ -398,13 +416,25 @@ export default function Home() {
       <div className="flex justify-end px-4 pt-6 sm:px-6 lg:px-10">
         <button
           type="button"
-          onClick={() => setTheme(isDark ? "light" : "dark")}
+          onClick={() => {
+            if (themeMode === "system") {
+              setThemeMode(isDark ? "light" : "dark");
+              return;
+            }
+            if (themeMode === "dark") {
+              setThemeMode("light");
+              return;
+            }
+            setThemeMode("system");
+          }}
           className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${isDark
               ? "border-slate-700 bg-slate-800 text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
               : "border-slate-200 bg-slate-50 text-slate-800 hover:border-emerald-300 hover:text-emerald-700"
             }`}
         >
-          {isDark ? "Switch to light mode" : "Switch to dark mode"}
+          {themeMode === "system"
+            ? `Theme: System (${isDark ? "Dark" : "Light"})`
+            : `Theme: ${themeMode === "dark" ? "Dark" : "Light"}`}
         </button>
       </div>
       <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-12 sm:gap-10 sm:px-6 lg:px-8">
