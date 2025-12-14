@@ -19,7 +19,7 @@ export type AgentProfile = {
   linkedin: string;
   phoneCountryCode: string;
   phone: string;
-  summary: string;
+  summary?: string;
   tags: string[];
   createdAt: string;
 };
@@ -52,6 +52,8 @@ export async function createAgentWithInitialExperience(input: {
 
   const createdAt = input.agent.createdAt ?? new Date().toISOString();
   const agentId = input.agent.id;
+  const { summary: summaryToIgnore, ...agentWithoutSummary } = input.agent;
+  void summaryToIgnore;
 
   const expCreatedAt = input.experience?.createdAt ?? createdAt;
   const experience: Experience | undefined = input.experience
@@ -71,7 +73,7 @@ export async function createAgentWithInitialExperience(input: {
         Item: {
           PK: pk(agentId),
           SK: "PROFILE",
-          ...input.agent,
+          ...agentWithoutSummary,
           createdAt,
         },
         ConditionExpression: "attribute_not_exists(PK)",
@@ -137,7 +139,7 @@ export async function getAgentWithExperiences(agentId: string) {
         linkedin: String(profileItem.linkedin ?? ""),
         phoneCountryCode: String(profileItem.phoneCountryCode ?? "+1"),
         phone: String(profileItem.phone ?? ""),
-        summary: String(profileItem.summary ?? ""),
+        summary: typeof profileItem.summary === "string" ? String(profileItem.summary ?? "") : undefined,
         tags: Array.isArray(profileItem.tags) ? (profileItem.tags as string[]) : [],
         createdAt: String(profileItem.createdAt ?? ""),
       } satisfies AgentProfile)
@@ -158,6 +160,11 @@ export async function getAgentWithExperiences(agentId: string) {
       } satisfies Experience;
     })
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  if (profile) {
+    const latest = experiences[0]?.notes;
+    profile.summary = latest || profile.summary || "";
+  }
 
   return { profile, experiences };
 }
@@ -197,7 +204,7 @@ export async function listAgentsWithExperiences(limit = 50) {
         linkedin: String(item.linkedin ?? ""),
         phoneCountryCode: String(item.phoneCountryCode ?? "+1"),
         phone: String(item.phone ?? ""),
-        summary: String(item.summary ?? ""),
+        summary: typeof item.summary === "string" ? String(item.summary ?? "") : undefined,
         tags: Array.isArray(item.tags) ? (item.tags as string[]) : [],
         createdAt: String(item.createdAt ?? ""),
       });
@@ -236,6 +243,11 @@ export async function listAgentsWithExperiences(limit = 50) {
       experiencesByAgentId[agent.id] = experiences;
     })
   );
+
+  for (const agent of profiles) {
+    const latest = experiencesByAgentId[agent.id]?.[0]?.notes;
+    agent.summary = latest || agent.summary || "";
+  }
 
   return { agents: profiles, experiencesByAgentId };
 }
@@ -282,7 +294,7 @@ export async function getAgentProfile(agentId: string) {
     linkedin: String(item.linkedin ?? ""),
     phoneCountryCode: String(item.phoneCountryCode ?? "+1"),
     phone: String(item.phone ?? ""),
-    summary: String(item.summary ?? ""),
+    summary: typeof item.summary === "string" ? String(item.summary ?? "") : undefined,
     tags: Array.isArray(item.tags) ? (item.tags as string[]) : [],
     createdAt: String(item.createdAt ?? ""),
   } satisfies AgentProfile;
@@ -291,6 +303,8 @@ export async function getAgentProfile(agentId: string) {
 export async function putAgentProfile(profile: AgentProfile) {
   const ddb = getDocClient();
   const tableName = getTableName();
+  const { summary: summaryToIgnore, ...profileWithoutSummary } = profile;
+  void summaryToIgnore;
 
   await ddb.send(
     new PutCommand({
@@ -298,7 +312,7 @@ export async function putAgentProfile(profile: AgentProfile) {
       Item: {
         PK: pk(profile.id),
         SK: "PROFILE",
-        ...profile,
+        ...profileWithoutSummary,
       },
     })
   );

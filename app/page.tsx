@@ -182,7 +182,7 @@ export default function Home() {
           linkedin: string;
           phoneCountryCode?: string;
           phone?: string;
-          summary: string;
+          summary?: string;
           tags: string[];
           createdAt: string;
         }>;
@@ -211,7 +211,7 @@ export default function Home() {
         linkedin: agent.linkedin,
         phoneCountryCode: normalizeCountryCode(agent.phoneCountryCode ?? "+1") || "+1",
         phone: normalizePhone(typeof agent.phone === "string" ? agent.phone : ""),
-        summary: agent.summary,
+        summary: typeof agent.summary === "string" ? agent.summary : "",
         tags: Array.isArray(agent.tags) ? filterOutQuickTags(agent.tags) : [],
         createdAt: safeDate(agent.createdAt),
       }));
@@ -375,7 +375,6 @@ export default function Home() {
           linkedin: linkedin || existingAgent.linkedin,
           phoneCountryCode: phone ? phoneCountryCode : undefined,
           phone,
-          summary: formData.summary.trim() || existingAgent.summary,
           tags: focusAreaTags,
           rating: ratingValue,
           notes: formData.summary.trim(),
@@ -391,7 +390,6 @@ export default function Home() {
           linkedin,
           phoneCountryCode,
           phone,
-          summary: formData.summary.trim() || "No summary yet.",
           tags: focusAreaTags,
           rating: ratingValue,
           notes: formData.summary.trim(),

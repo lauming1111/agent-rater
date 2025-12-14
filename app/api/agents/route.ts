@@ -111,10 +111,8 @@ export async function POST(req: Request) {
 
   const roleInput = typeof input.role === "string" ? input.role.trim() : "";
   const locationInput = typeof input.location === "string" ? input.location.trim() : "";
-  const summaryInput = typeof input.summary === "string" ? input.summary.trim() : "";
   const role = roleInput || "HR Agent";
   const location = locationInput || "Unknown";
-  const summary = summaryInput || "No summary yet.";
   const phoneCountryCode =
     typeof input.phoneCountryCode === "string" ? normalizeCountryCode(input.phoneCountryCode) : "";
   const phone = typeof input.phone === "string" ? normalizePhone(input.phone) : "";
@@ -148,7 +146,6 @@ export async function POST(req: Request) {
         const resolvedLinkedin = linkedin || profile.linkedin || "";
         const resolvedRole = roleInput || profile.role || role;
         const resolvedLocation = locationInput || profile.location || location;
-        const resolvedSummary = summaryInput || profile.summary || summary;
         const resolvedPhoneCountryCodeValue = phone ? resolvedPhoneCountryCode : profile.phoneCountryCode || "+1";
 
         await putAgentProfile({
@@ -159,7 +156,6 @@ export async function POST(req: Request) {
           linkedin: resolvedLinkedin,
           phoneCountryCode: resolvedPhoneCountryCodeValue,
           phone: resolvedPhone,
-          summary: resolvedSummary,
           tags: mergedTags,
           createdAt,
         });
@@ -176,7 +172,7 @@ export async function POST(req: Request) {
               linkedin: resolvedLinkedin,
               phoneCountryCode: resolvedPhoneCountryCodeValue,
               phone: resolvedPhone,
-              summary: resolvedSummary,
+              summary: experience?.notes ?? notes,
               tags: mergedTags,
               createdAt,
             },
@@ -196,7 +192,6 @@ export async function POST(req: Request) {
         linkedin,
         phoneCountryCode: resolvedPhoneCountryCode,
         phone,
-        summary,
         tags,
         createdAt,
       },
@@ -213,7 +208,7 @@ export async function POST(req: Request) {
           linkedin,
           phoneCountryCode: resolvedPhoneCountryCode,
           phone,
-          summary,
+          summary: experience?.notes ?? notes,
           tags,
           createdAt: res.createdAt,
         },
