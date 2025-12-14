@@ -137,6 +137,7 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [experiences, setExperiences] = useState<Record<string, Experience[]>>({});
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [detailsOpenByAgentId, setDetailsOpenByAgentId] = useState<Record<string, boolean>>({});
   const [sortOption, setSortOption] = useState<
     "latest" | "rating-desc" | "rating-asc" | "tags-desc" | "name-asc" | "name-desc"
   >("latest");
@@ -1027,6 +1028,11 @@ export default function Home() {
                   </div>
 
                   <details
+                    open={detailsOpenByAgentId[agent.id] ?? true}
+                    onToggle={(event) => {
+                      const nextOpen = (event.currentTarget as HTMLDetailsElement).open;
+                      setDetailsOpenByAgentId((prev) => ({ ...prev, [agent.id]: nextOpen }));
+                    }}
                     className={`mt-6 space-y-3 rounded-2xl border p-4 ${isDark ? "border-slate-800 bg-slate-900/70" : "border-slate-200 bg-slate-50"
                       }`}
                   >
