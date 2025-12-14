@@ -5,7 +5,6 @@ import { type ChangeEvent, type FormEvent, useCallback, useEffect, useMemo, useS
 type Agent = {
   id: string;
   name: string;
-  role: string;
   location: string;
   linkedin: string;
   phoneCountryCode: string;
@@ -145,7 +144,6 @@ export default function Home() {
   const [systemTheme, setSystemTheme] = useState<"light" | "dark">("light");
   const [formData, setFormData] = useState({
     name: "",
-    role: "",
     location: "",
     linkedin: "",
     phoneCountryCode: "+1",
@@ -178,7 +176,6 @@ export default function Home() {
         agents?: Array<{
           id: string;
           name: string;
-          role: string;
           location: string;
           linkedin: string;
           phoneCountryCode?: string;
@@ -207,7 +204,6 @@ export default function Home() {
       const nextAgents: Agent[] = data.agents.map((agent) => ({
         id: agent.id,
         name: normalizeName(agent.name),
-        role: agent.role,
         location: agent.location,
         linkedin: agent.linkedin,
         phoneCountryCode: normalizeCountryCode(agent.phoneCountryCode ?? "+1") || "+1",
@@ -277,7 +273,7 @@ export default function Home() {
     const term = search.toLowerCase();
     if (!term) return agents;
     return agents.filter((agent) =>
-      [agent.name, agent.role, agent.location, agent.summary, agent.tags.join(" "), agent.phone]
+      [agent.name, agent.location, agent.summary, agent.tags.join(" "), agent.phone]
         .join(" ")
         .toLowerCase()
         .includes(term)
@@ -285,7 +281,7 @@ export default function Home() {
   }, [agents, search]);
 
   const handleInput =
-    (key: "name" | "role" | "location" | "linkedin" | "phoneCountryCode" | "phone" | "summary" | "tags") =>
+    (key: "name" | "location" | "linkedin" | "phoneCountryCode" | "phone" | "summary" | "tags") =>
       (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setFormData((prev) => ({ ...prev, [key]: e.target.value }));
       };
@@ -325,7 +321,6 @@ export default function Home() {
     setFormData((prev) => ({
       ...prev,
       name: formatDisplayName(agent.name),
-      role: agent.role,
       location: agent.location === "unknown" ? "" : agent.location,
       linkedin: agent.linkedin,
       phoneCountryCode: normalizeCountryCode(agent.phoneCountryCode) || "+1",
@@ -371,7 +366,6 @@ export default function Home() {
       ? {
           id: existingAgent.id,
           name,
-          role: formData.role.trim() || existingAgent.role,
           location: locationInput ? countryRegion : existingAgent.location,
           linkedin: linkedin || existingAgent.linkedin,
           phoneCountryCode: phone ? phoneCountryCode : undefined,
@@ -386,7 +380,6 @@ export default function Home() {
       : {
           id: crypto.randomUUID(),
           name,
-          role: formData.role.trim() || "HR Agent",
           location: countryRegion,
           linkedin,
           phoneCountryCode,
@@ -419,7 +412,6 @@ export default function Home() {
 
       setFormData({
         name: "",
-        role: "",
         location: "",
         linkedin: "",
         phoneCountryCode: "+1",
@@ -556,18 +548,6 @@ export default function Home() {
                 required
                 className={inputClass}
                 placeholder="e.g. Jamie Park"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className={labelClass} htmlFor="role">
-                Role / title
-              </label>
-              <input
-                id="role"
-                value={formData.role}
-                onChange={handleInput("role")}
-                className={inputClass}
-                placeholder="HRBP, recruiter, talent partner…"
               />
             </div>
             <div className="space-y-2">
@@ -914,12 +894,6 @@ export default function Home() {
                             >
                               {formatDisplayName(agent.name)}
                             </h3>
-                            <span
-                              className={`rounded-full px-3 py-1 text-xs font-semibold ${isDark ? "bg-emerald-900/40 text-emerald-100" : "bg-emerald-50 text-emerald-700"
-                                }`}
-                            >
-                              {agent.role || "HR Agent"}
-                            </span>
                           </div>
                           {areaTags.length > 0 && (
                             <div className="mt-2 flex flex-wrap items-center gap-2">
