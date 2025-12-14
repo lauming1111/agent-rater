@@ -15,6 +15,13 @@ function jsonError(status: number, message: string) {
   return NextResponse.json({ error: message }, { status });
 }
 
+function publicMessage(err: unknown) {
+  if (process.env.NODE_ENV !== "production") {
+    return err instanceof Error ? err.message : "Unknown error";
+  }
+  return "Service unavailable";
+}
+
 function normalizePhone(value: string) {
   const digits = value.replace(/\D/g, "");
   if (!digits) return "";
@@ -38,8 +45,8 @@ export async function GET() {
     const data = await listAgentsWithExperiences(100);
     return NextResponse.json(data, { status: 200 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return jsonError(503, message);
+    console.error("[api/agents][GET] failed", err);
+    return jsonError(503, publicMessage(err));
   }
 }
 
@@ -215,7 +222,7 @@ export async function POST(req: Request) {
       { status: 201 }
     );
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return jsonError(503, message);
+    console.error("[api/agents][POST] failed", { agentId: id }, err);
+    return jsonError(503, publicMessage(err));
   }
 }

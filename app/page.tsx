@@ -1,6 +1,6 @@
 "use client";
 
-import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from "react";
+import { type ChangeEvent, type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 type Agent = {
   id: string;
@@ -121,11 +121,6 @@ function normalizeCountryRegion(value: string) {
   return trimmed;
 }
 
-const starterAgents: Agent[] = [
-];
-
-const seedExperiences: Record<string, Experience[]> = {};
-
 const quickTags = ["Ghosted", "Resume taker", "Slow response", "Good experience", "Got interview/job"];
 const quickTagSet = new Set(quickTags.map(normalizeTag));
 
@@ -138,9 +133,9 @@ function filterOutQuickTags(tags: string[]) {
 }
 
 export default function Home() {
-  const [agents, setAgents] = useState<Agent[]>(starterAgents);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [search, setSearch] = useState("");
-  const [experiences, setExperiences] = useState<Record<string, Experience[]>>(seedExperiences);
+  const [experiences, setExperiences] = useState<Record<string, Experience[]>>({});
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [sortOption, setSortOption] = useState<
     "latest" | "rating-desc" | "rating-asc" | "tags-desc" | "name-asc" | "name-desc"
@@ -159,94 +154,107 @@ export default function Home() {
     rating: 5,
   });
   const [selectedQuickTags, setSelectedQuickTags] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
+  const refreshFromApi = useCallback(async () => {
     const safeDate = (value: unknown) => {
       if (typeof value !== "string") return new Date();
       const date = new Date(value);
       return Number.isNaN(date.getTime()) ? new Date() : date;
     };
 
-    async function loadFromApi() {
-      try {
-        const res = await fetch("/api/agents", { cache: "no-store" });
-        if (!res.ok) return;
+    setIsLoading(true);
+    setLoadError(null);
 
-        const data = (await res.json()) as {
-          agents?: Array<{
-            id: string;
-            name: string;
-            role: string;
-            location: string;
-            linkedin: string;
-            phoneCountryCode?: string;
-            phone?: string;
-            summary: string;
-            tags: string[];
+    try {
+      const res = await fetch("/api/agents", { cache: "no-store" });
+      if (!res.ok) throw new Error(`Failed to load agents (${res.status})`);
+
+      const data = (await res.json()) as {
+        agents?: Array<{
+          id: string;
+          name: string;
+          role: string;
+          location: string;
+          linkedin: string;
+          phoneCountryCode?: string;
+          phone?: string;
+          summary: string;
+          tags: string[];
+          createdAt: string;
+        }>;
+        experiencesByAgentId?: Record<
+          string,
+          Array<{
+            rating: number;
+            notes: string;
+            tags?: string[];
+            countryRegion?: string;
+            ghosted: boolean;
+            fakeJob: boolean;
+            noResponse: boolean;
             createdAt: string;
-          }>;
-          experiencesByAgentId?: Record<
-            string,
-            Array<{
-              rating: number;
-              notes: string;
-              tags?: string[];
-              countryRegion?: string;
-              ghosted: boolean;
-              fakeJob: boolean;
-              noResponse: boolean;
-              createdAt: string;
-            }>
-          >;
-        };
+          }>
+        >;
+      };
 
-        if (!Array.isArray(data.agents)) return;
+      if (!Array.isArray(data.agents)) throw new Error("Unexpected response from API");
 
-        const nextAgents: Agent[] = data.agents.map((agent) => ({
-          id: agent.id,
-          name: normalizeName(agent.name),
-          role: agent.role,
-          location: agent.location,
-          linkedin: agent.linkedin,
-          phoneCountryCode: normalizeCountryCode(agent.phoneCountryCode ?? "+1") || "+1",
-          phone: normalizePhone(typeof agent.phone === "string" ? agent.phone : ""),
-          summary: agent.summary,
-          tags: Array.isArray(agent.tags) ? filterOutQuickTags(agent.tags) : [],
-          createdAt: safeDate(agent.createdAt),
+      const nextAgents: Agent[] = data.agents.map((agent) => ({
+        id: agent.id,
+        name: normalizeName(agent.name),
+        role: agent.role,
+        location: agent.location,
+        linkedin: agent.linkedin,
+        phoneCountryCode: normalizeCountryCode(agent.phoneCountryCode ?? "+1") || "+1",
+        phone: normalizePhone(typeof agent.phone === "string" ? agent.phone : ""),
+        summary: agent.summary,
+        tags: Array.isArray(agent.tags) ? filterOutQuickTags(agent.tags) : [],
+        createdAt: safeDate(agent.createdAt),
+      }));
+
+      const nextExperiences: Record<string, Experience[]> = {};
+      const exp = data.experiencesByAgentId ?? {};
+      for (const [agentId, items] of Object.entries(exp)) {
+        if (!Array.isArray(items)) continue;
+        nextExperiences[agentId] = items.map((item) => ({
+          rating: Number(item.rating ?? 0),
+          notes: item.notes ?? "",
+          tags: Array.isArray(item.tags) ? item.tags : [],
+          countryRegion: normalizeCountryRegion(item.countryRegion || ""),
+          ghosted: Boolean(item.ghosted),
+          fakeJob: Boolean(item.fakeJob),
+          noResponse: Boolean(item.noResponse),
+          createdAt: safeDate(item.createdAt),
         }));
-
-        const nextExperiences: Record<string, Experience[]> = {};
-        const exp = data.experiencesByAgentId ?? {};
-        for (const [agentId, items] of Object.entries(exp)) {
-          if (!Array.isArray(items)) continue;
-          nextExperiences[agentId] = items.map((item) => ({
-            rating: Number(item.rating ?? 0),
-            notes: item.notes ?? "",
-            tags: Array.isArray(item.tags) ? item.tags : [],
-            countryRegion: normalizeCountryRegion(item.countryRegion || ""),
-            ghosted: Boolean(item.ghosted),
-            fakeJob: Boolean(item.fakeJob),
-            noResponse: Boolean(item.noResponse),
-            createdAt: safeDate(item.createdAt),
-          }));
-        }
-
-        if (cancelled) return;
-        setAgents(nextAgents);
-        setExperiences(nextExperiences);
-      } catch {
-        // Fall back to seeded in-memory data when API is unavailable (e.g. no DynamoDB env vars yet).
       }
+
+      setAgents(nextAgents);
+      setExperiences(nextExperiences);
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load agents";
+      setLoadError(message);
+      return false;
+    } finally {
+      setIsLoading(false);
     }
-
-    void loadFromApi();
-
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage?.clear();
+    } catch {}
+
+    try {
+      window.sessionStorage?.clear();
+    } catch {}
+
+    void refreshFromApi();
+  }, [refreshFromApi]);
 
   useEffect(() => {
     const media = window.matchMedia?.("(prefers-color-scheme: dark)");
@@ -330,8 +338,11 @@ export default function Home() {
     }
   };
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isSaving) return;
+
+    setSaveError(null);
     const name = normalizeName(formData.name);
     if (!name) return;
 
@@ -353,140 +364,80 @@ export default function Home() {
     const linkedin = linkedinInput ? normalizeLinkedin(linkedinInput) : "";
     const existingAgent = selectedAgent;
 
-    if (existingAgent) {
-      const mergedTags = filterOutQuickTags(
-        Array.from(new Set([...(existingAgent.tags ?? []), ...focusAreaTags]))
-      );
+    setIsSaving(true);
 
-      setAgents((prev) =>
-        prev.map((agent) =>
-          agent.id === existingAgent.id
-            ? {
-              ...agent,
-              name,
-              role: formData.role.trim() || agent.role,
-              location: locationInput ? countryRegion : agent.location,
-              phoneCountryCode: phone ? phoneCountryCode : agent.phoneCountryCode || "+1",
-              phone: phone || agent.phone,
-              summary: formData.summary.trim() || agent.summary,
-              linkedin: linkedin || agent.linkedin,
-              tags: mergedTags,
-              createdAt,
-            }
-            : agent
-        )
-      );
-
-      if (ratingValue >= 1 && ratingValue <= 5) {
-        const experience: Experience = {
+    const payload = existingAgent
+      ? {
+          id: existingAgent.id,
+          name,
+          role: formData.role.trim() || existingAgent.role,
+          location: locationInput ? countryRegion : existingAgent.location,
+          linkedin: linkedin || existingAgent.linkedin,
+          phoneCountryCode: phone ? phoneCountryCode : undefined,
+          phone,
+          summary: formData.summary.trim() || existingAgent.summary,
+          tags: focusAreaTags,
           rating: ratingValue,
-          notes: formData.summary.trim(),
-          tags: commentTags,
-          countryRegion,
-          ghosted: false,
-          fakeJob: false,
-          noResponse: false,
-          createdAt,
-        };
-
-        setExperiences((prev) => ({
-          ...prev,
-          [existingAgent.id]: [experience, ...(prev[existingAgent.id] || [])],
-        }));
-
-        void fetch("/api/agents", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            id: existingAgent.id,
-            name,
-            role: formData.role.trim() || existingAgent.role,
-            location: locationInput ? countryRegion : existingAgent.location,
-            linkedin: linkedin || existingAgent.linkedin,
-            phoneCountryCode: phone ? phoneCountryCode : undefined,
-            phone,
-            summary: existingAgent.summary,
-            tags: mergedTags,
-            rating: ratingValue,
-            notes: formData.summary.trim(),
-            experienceTags: commentTags,
-            countryRegion,
-            createdAt: createdAt.toISOString(),
-          }),
-        }).catch(() => {
-          // Fall back to local-only state when API is unavailable.
-        });
-      }
-    } else {
-      const agentId = crypto.randomUUID();
-      const nextAgent: Agent = {
-        id: agentId,
-        name,
-        role: formData.role.trim() || "HR Agent",
-        location: countryRegion,
-        linkedin,
-        phoneCountryCode,
-        phone,
-        summary: formData.summary.trim() || "No summary yet.",
-        tags: focusAreaTags,
-        createdAt,
-      };
-      setAgents((prev) => [nextAgent, ...prev]);
-
-      if (ratingValue >= 1 && ratingValue <= 5) {
-        const firstExperience: Experience = {
-          rating: ratingValue,
-          notes: formData.summary.trim(),
-          tags: commentTags,
-          countryRegion,
-          ghosted: false,
-          fakeJob: false,
-          noResponse: false,
-          createdAt,
-        };
-        setExperiences((prev) => ({
-          ...prev,
-          [nextAgent.id]: [firstExperience, ...(prev[nextAgent.id] || [])],
-        }));
-      }
-
-      void fetch("/api/agents", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          id: nextAgent.id,
-          name: nextAgent.name,
-          role: nextAgent.role,
-          location: nextAgent.location,
-          linkedin: nextAgent.linkedin,
-          phoneCountryCode: nextAgent.phoneCountryCode,
-            phone: nextAgent.phone,
-            summary: nextAgent.summary,
-            tags: nextAgent.tags,
-            rating: ratingValue,
           notes: formData.summary.trim(),
           experienceTags: commentTags,
           countryRegion,
           createdAt: createdAt.toISOString(),
-        }),
-      }).catch(() => {
-        // Fall back to local-only state when API is unavailable.
+        }
+      : {
+          id: crypto.randomUUID(),
+          name,
+          role: formData.role.trim() || "HR Agent",
+          location: countryRegion,
+          linkedin,
+          phoneCountryCode,
+          phone,
+          summary: formData.summary.trim() || "No summary yet.",
+          tags: focusAreaTags,
+          rating: ratingValue,
+          notes: formData.summary.trim(),
+          experienceTags: commentTags,
+          countryRegion,
+          createdAt: createdAt.toISOString(),
+        };
+
+    try {
+      const res = await fetch("/api/agents", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
       });
+
+      if (!res.ok) {
+        let errorMessage = `Failed to save (${res.status})`;
+        try {
+          const data = (await res.json()) as { error?: string };
+          if (data?.error) errorMessage = data.error;
+        } catch {}
+        throw new Error(errorMessage);
+      }
+
+      await refreshFromApi();
+
+      setFormData({
+        name: "",
+        role: "",
+        location: "",
+        linkedin: "",
+        phoneCountryCode: "+1",
+        phone: "",
+        summary: "",
+        tags: "",
+        rating: 5,
+      });
+      setSelectedAgentId(null);
+      setSelectedQuickTags([]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to save";
+      setSaveError(message);
+    } finally {
+      setIsSaving(false);
     }
 
-    setFormData({
-      name: "",
-      role: "",
-      location: "",
-      linkedin: "",
-      phoneCountryCode: "+1",
-      phone: "",
-      summary: "",
-      tags: "",
-      rating: 5,
-    });
-    setSelectedAgentId(null);
-    setSelectedQuickTags([]);
   };
 
   const averageRating = (items: Experience[]) => {
@@ -773,12 +724,33 @@ export default function Home() {
           <div className="mt-6 flex items-center gap-4">
             <button
               type="submit"
-              className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-emerald-500/30"
+              disabled={isSaving}
+              className={`inline-flex items-center justify-center gap-2 rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-emerald-500/30 ${
+                isSaving ? "cursor-not-allowed opacity-70 hover:translate-y-0 hover:shadow-sm" : ""
+              }`}
             >
-              Add to directory
+              {isSaving && (
+                <span
+                  aria-hidden
+                  className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+                />
+              )}
+              {isSaving ? "Saving..." : "Add to directory"}
             </button>
-            <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>Saved locally in this session.</p>
+            <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+              Saved to the database.
+            </p>
           </div>
+          {saveError && (
+            <div
+              role="alert"
+              className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
+                isDark ? "border-rose-900/50 bg-rose-950/40 text-rose-100" : "border-rose-200 bg-rose-50 text-rose-800"
+              }`}
+            >
+              {saveError}
+            </div>
+          )}
         </form>
 
         <section className={panelClass}>
@@ -796,7 +768,7 @@ export default function Home() {
               className={`rounded-full px-4 py-2 text-xs font-semibold ${isDark ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-700"
                 }`}
             >
-              {filteredAgents.length} match{filteredAgents.length === 1 ? "" : "es"}
+              {isLoading ? "Loading..." : `${filteredAgents.length} match${filteredAgents.length === 1 ? "" : "es"}`}
             </span>
           </div>
           <div className="mt-4">
@@ -845,12 +817,52 @@ export default function Home() {
                 className={`rounded-full px-4 py-2 text-xs font-semibold ${isDark ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-700"
                   }`}
               >
-                {filteredAgents.length} match{filteredAgents.length === 1 ? "" : "es"}
+                {isLoading ? "Loading..." : `${filteredAgents.length} match${filteredAgents.length === 1 ? "" : "es"}`}
               </span>
             </div>
           </div>
+          {loadError && (
+            <div
+              role="alert"
+              className={`rounded-3xl border px-6 py-4 text-sm ${isDark
+                ? "border-rose-900/50 bg-rose-950/40 text-rose-100"
+                : "border-rose-200 bg-rose-50 text-rose-800"
+              }`}
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <p className="font-semibold">Could not load agents from the database.</p>
+                  <p className={`${isDark ? "text-rose-200/90" : "text-rose-700"}`}>{loadError}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void refreshFromApi()}
+                  className={`inline-flex items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold transition ${isDark
+                    ? "border-rose-800/60 bg-rose-950/30 text-rose-100 hover:border-rose-600"
+                    : "border-rose-200 bg-white text-rose-800 hover:border-rose-300"
+                  }`}
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-4">
-            {sortedAgents.map((agent) => {
+            {isLoading ? (
+              Array.from({ length: 4 }).map((_, idx) => (
+                <div key={idx} aria-hidden className={`${cardClass} animate-pulse`}>
+                  <div className="flex gap-4">
+                    <div className={`h-12 w-12 rounded-full ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+                    <div className="flex-1 space-y-3">
+                      <div className={`h-5 w-44 rounded ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+                      <div className={`h-4 w-72 rounded ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+                      <div className={`h-4 w-56 rounded ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              sortedAgents.map((agent) => {
               const entries = experiences[agent.id] || [];
               const avg = averageRating(entries);
               const tagCounts = quickTagCountsFor(entries, quickTags);
@@ -1078,8 +1090,9 @@ export default function Home() {
                   </details>
                 </article>
               );
-            })}
-            {!filteredAgents.length && (
+              })
+            )}
+            {!isLoading && !loadError && !filteredAgents.length && (
               <div
                 className={`rounded-3xl border border-dashed p-8 text-center text-sm ${isDark
                     ? "border-slate-800 bg-slate-900/60 text-slate-400"

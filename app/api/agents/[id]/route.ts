@@ -9,6 +9,13 @@ function jsonError(status: number, message: string) {
   return NextResponse.json({ error: message }, { status });
 }
 
+function publicMessage(err: unknown) {
+  if (process.env.NODE_ENV !== "production") {
+    return err instanceof Error ? err.message : "Unknown error";
+  }
+  return "Service unavailable";
+}
+
 export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   if (!id) return jsonError(400, "Missing agent id");
@@ -17,8 +24,8 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
     const data = await getAgentWithExperiences(id);
     return NextResponse.json(data, { status: 200 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return jsonError(503, message);
+    console.error("[api/agents/:id][GET] failed", { agentId: id }, err);
+    return jsonError(503, publicMessage(err));
   }
 }
 
@@ -74,7 +81,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     });
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return jsonError(503, message);
+    console.error("[api/agents/:id][POST] failed", { agentId: id }, err);
+    return jsonError(503, publicMessage(err));
   }
 }
