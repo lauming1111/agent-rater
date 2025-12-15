@@ -1,5 +1,8 @@
 "use client";
 
+import { BackToTopButton } from "@/app/components/BackToTopButton";
+import { StickyHeader } from "@/app/components/StickyHeader";
+import { useThemeMode } from "@/app/components/useThemeMode";
 import { validateAndNormalizePhone } from "@/lib/phone";
 import { type ChangeEvent, type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -152,8 +155,7 @@ export default function Home() {
   const [sortOption, setSortOption] = useState<
     "latest" | "rating-desc" | "rating-asc" | "tags-desc" | "name-asc" | "name-desc"
   >("latest");
-  const [themeMode, setThemeMode] = useState<"system" | "light" | "dark">("system");
-  const [systemTheme, setSystemTheme] = useState<"light" | "dark">("light");
+  const { themeMode, isDark, toggleThemeMode } = useThemeMode("system");
   const [formData, setFormData] = useState({
     name: "",
     location: "",
@@ -344,22 +346,6 @@ export default function Home() {
     void load();
   }, []);
 
-  useEffect(() => {
-    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
-    if (!media) return;
-
-    const apply = () => setSystemTheme(media.matches ? "dark" : "light");
-    apply();
-
-    if (typeof media.addEventListener === "function") {
-      media.addEventListener("change", apply);
-      return () => media.removeEventListener("change", apply);
-    }
-
-    media.addListener(apply);
-    return () => media.removeListener(apply);
-  }, []);
-
   const filteredAgents = useMemo(() => {
     const term = search.toLowerCase();
     if (!term) return agents;
@@ -387,8 +373,6 @@ export default function Home() {
     );
   };
 
-  const effectiveTheme = themeMode === "system" ? systemTheme : themeMode;
-  const isDark = effectiveTheme === "dark";
   const pageBg = isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900";
   const panelClass = isDark
     ? "rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-lg shadow-black/40"
@@ -617,74 +601,52 @@ export default function Home() {
 
   return (
     <div className={`min-h-screen ${pageBg}`}>
-      <div className="flex justify-end px-4 pt-6 sm:px-6 lg:px-10">
-        <div className="flex flex-col items-end gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              if (themeMode === "system") {
-                setThemeMode(isDark ? "light" : "dark");
-                return;
-              }
-              if (themeMode === "dark") {
-                setThemeMode("light");
-                return;
-              }
-              setThemeMode("system");
-            }}
-            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${isDark
-                ? "border-slate-700 bg-slate-800 text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
-                : "border-slate-200 bg-slate-50 text-slate-800 hover:border-emerald-300 hover:text-emerald-700"
-              }`}
-          >
-            {themeMode === "system"
-              ? `Theme: System (${isDark ? "Dark" : "Light"})`
-              : `Theme: ${themeMode === "dark" ? "Dark" : "Light"}`}
-          </button>
-          <div className="flex items-center gap-3">
-            {!isAuthLoading && !authUser && (
+      <StickyHeader themeMode={themeMode} isDark={isDark} onToggleTheme={toggleThemeMode}>
+        <div className="flex items-center gap-3">
+          {!isAuthLoading && !authUser && (
+            <a
+              href="/api/auth/linkedin/start"
+              className={`inline-flex items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold transition ${isDark
+                ? "border-slate-700 bg-slate-900 text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
+                : "border-slate-200 bg-white text-slate-800 hover:border-emerald-300 hover:text-emerald-700"
+                }`}
+            >
+              Sign in with LinkedIn
+            </a>
+          )}
+          {!isAuthLoading && authUser && (
+            <div className="flex flex-col items-end gap-2">
               <a
-                href="/api/auth/linkedin/start"
+                href="/profile"
                 className={`inline-flex items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold transition ${isDark
                   ? "border-slate-700 bg-slate-900 text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
                   : "border-slate-200 bg-white text-slate-800 hover:border-emerald-300 hover:text-emerald-700"
                   }`}
               >
-                Sign in with LinkedIn
+                My Profile
               </a>
-            )}
-            {!isAuthLoading && authUser && (
-              <div className="flex flex-col items-end gap-2">
-                <a
-                  href="/profile"
-                  className={`inline-flex items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold transition ${isDark
-                    ? "border-slate-700 bg-slate-900 text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
-                    : "border-slate-200 bg-white text-slate-800 hover:border-emerald-300 hover:text-emerald-700"
-                    }`}
-                >
-                  My Profile
-                </a>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      await fetch("/api/auth/logout", { method: "POST" });
-                    } finally {
-                      setAuthUser(null);
-                    }
-                  }}
-                  className={`inline-flex items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold transition ${isDark
-                    ? "border-slate-700 bg-slate-900 text-slate-100 hover:border-slate-500"
-                    : "border-slate-200 bg-white text-slate-800 hover:border-slate-300"
-                    }`}
-                >
-                  Sign out
-                </button>
-              </div>
-            )}
-          </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await fetch("/api/auth/logout", { method: "POST" });
+                  } finally {
+                    setAuthUser(null);
+                  }
+                }}
+                className={`inline-flex items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold transition ${isDark
+                  ? "border-slate-700 bg-slate-900 text-slate-100 hover:border-slate-500"
+                  : "border-slate-200 bg-white text-slate-800 hover:border-slate-300"
+                  }`}
+              >
+                Sign out
+              </button>
+            </div>
+          )}
         </div>
-      </div>
+      </StickyHeader>
+
+      <BackToTopButton isDark={isDark} />
       <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-12 sm:gap-10 sm:px-6 lg:px-8">
         <header className={`${panelClass} p-8`}>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-500">HR Agent Directory</p>
@@ -895,7 +857,7 @@ export default function Home() {
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="space-y-2">
               <label className={labelClass} htmlFor="rating">
-                First rating (1-5)
+                Rating
               </label>
               <div className="flex flex-wrap gap-2" id="rating">
                 {[1, 2, 3, 4, 5].map((value) => {
@@ -945,7 +907,7 @@ export default function Home() {
               {isSaving ? "Saving..." : isEditingMySubmission ? "Update your review" : "Add to directory"}
             </button>
             <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-              Saved to the database.
+              Saved
             </p>
           </div>
           </fieldset>
@@ -1013,7 +975,7 @@ export default function Home() {
                       : "border-slate-200 bg-slate-50 text-slate-800 focus:border-emerald-400"
                     }`}
                 >
-                  <option value="latest">Latest submit</option>
+                  <option value="latest">Latest submission</option>
                   <option value="tags-desc">Most tag votes</option>
                   <option value="rating-desc">Rating: high to low</option>
                   <option value="rating-asc">Rating: low to high</option>
@@ -1108,6 +1070,8 @@ export default function Home() {
               const displayCrPairs = hasKnownCrTags
                 ? crPairs.filter(([tag]) => tag !== "unknown")
                 : crPairs;
+              const mySubmission = authUser ? (mySubmissionByAgentId.get(agent.id) ?? null) : null;
+              const mySubmissionTime = mySubmission ? new Date(mySubmission.createdAt).getTime() : NaN;
               const initials =
                 agent.name
                   .split(" ")
@@ -1205,7 +1169,7 @@ export default function Home() {
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
-                          {authUser && (
+                          {authUser && !mySubmission && (
                             <button
                               type="button"
                               onClick={() => selectAgentForSubmission(agent)}
@@ -1215,7 +1179,7 @@ export default function Home() {
                                   : "border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-300 hover:text-emerald-700"
                               }`}
                             >
-                              {mySubmissionByAgentId.has(agent.id) ? "Edit comment" : "Add submission"}
+                              Add submission
                             </button>
                           )}
                           <div
@@ -1280,6 +1244,28 @@ export default function Home() {
                             <p className={`mt-1 text-sm ${isDark ? "text-slate-100" : "text-slate-800"}`}>
                               {entry.notes || "No additional notes provided."}
                             </p>
+                            {mySubmission &&
+                              !Number.isNaN(mySubmissionTime) &&
+                              entry.createdAt.getTime() === mySubmissionTime && (
+                                <div className="mt-2 flex items-center justify-between gap-3">
+                                  <span
+                                    className={`text-[10px] font-semibold uppercase tracking-wide ${
+                                      isDark ? "text-emerald-200" : "text-emerald-700"
+                                    }`}
+                                  >
+                                    Your comment
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => selectAgentForSubmission(agent)}
+                                    className={`text-xs font-semibold underline underline-offset-4 transition ${
+                                      isDark ? "text-slate-200 hover:text-slate-50" : "text-slate-700 hover:text-slate-900"
+                                    }`}
+                                  >
+                                    Edit comment
+                                  </button>
+                                </div>
+                              )}
                             {filterQuickTags(submissionTags(entry)).length > 0 && (
                               <div
                                 className={`mt-2 flex flex-wrap gap-2 text-xs ${isDark ? "text-slate-400" : "text-slate-600"

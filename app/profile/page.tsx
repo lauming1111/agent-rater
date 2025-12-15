@@ -1,5 +1,7 @@
 "use client";
 
+import { StickyHeader } from "@/app/components/StickyHeader";
+import { useThemeMode } from "@/app/components/useThemeMode";
 import Image from "next/image";
 import Link from "next/link";
 import { validateAndNormalizePhone } from "@/lib/phone";
@@ -130,29 +132,12 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [themeMode, setThemeMode] = useState<"system" | "light" | "dark">("system");
-  const [systemTheme, setSystemTheme] = useState<"light" | "dark">("light");
+  const { themeMode, isDark, toggleThemeMode } = useThemeMode("system");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [draft, setDraft] = useState<EditDraft | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
-    if (!media) return;
-
-    const apply = () => setSystemTheme(media.matches ? "dark" : "light");
-    apply();
-
-    if (typeof media.addEventListener === "function") {
-      media.addEventListener("change", apply);
-      return () => media.removeEventListener("change", apply);
-    }
-
-    media.addListener(apply);
-    return () => media.removeListener(apply);
-  }, []);
 
   const reload = useCallback(async () => {
     setIsLoading(true);
@@ -189,8 +174,6 @@ export default function ProfilePage() {
 
   const exportJson = useMemo(() => JSON.stringify(submissions, null, 2), [submissions]);
 
-  const effectiveTheme = themeMode === "system" ? systemTheme : themeMode;
-  const isDark = effectiveTheme === "dark";
   const pageBg = isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900";
   const panelClass = isDark
     ? "rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-lg shadow-black/40"
@@ -212,61 +195,37 @@ export default function ProfilePage() {
 
   return (
     <div className={`min-h-screen ${pageBg}`}>
-      <div className="flex justify-end px-4 pt-6 sm:px-6 lg:px-10">
-        <div className="flex flex-col items-end gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              if (themeMode === "system") {
-                setThemeMode(isDark ? "light" : "dark");
-                return;
-              }
-              if (themeMode === "dark") {
-                setThemeMode("light");
-                return;
-              }
-              setThemeMode("system");
-            }}
-            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${isDark
-                ? "border-slate-700 bg-slate-800 text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
-                : "border-slate-200 bg-slate-50 text-slate-800 hover:border-emerald-300 hover:text-emerald-700"
-              }`}
-          >
-            {themeMode === "system"
-              ? `Theme: System (${isDark ? "Dark" : "Light"})`
-              : `Theme: ${themeMode === "dark" ? "Dark" : "Light"}`}
-          </button>
-          <div className="flex items-center gap-3">
-            {!isLoading && !user && (
-              <a href="/api/auth/linkedin/start" className={secondaryButtonClass}>
-                Sign in with LinkedIn
-              </a>
-            )}
-            <Link href="/" className={secondaryButtonClass}>
-              Back
-            </Link>
-            {!isLoading && user && (
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    await fetch("/api/auth/logout", { method: "POST" });
-                  } finally {
-                    setUser(null);
-                    setSubmissions([]);
-                  }
-                }}
-                className={secondaryButtonClass}
-              >
-                Sign out
-              </button>
-            )}
-            <button type="button" onClick={() => void reload()} className={secondaryButtonClass}>
-              Refresh
+      <StickyHeader themeMode={themeMode} isDark={isDark} onToggleTheme={toggleThemeMode}>
+        <div className="flex items-center gap-3">
+          {!isLoading && !user && (
+            <a href="/api/auth/linkedin/start" className={secondaryButtonClass}>
+              Sign in with LinkedIn
+            </a>
+          )}
+          <Link href="/" className={secondaryButtonClass}>
+            Back
+          </Link>
+          {!isLoading && user && (
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await fetch("/api/auth/logout", { method: "POST" });
+                } finally {
+                  setUser(null);
+                  setSubmissions([]);
+                }
+              }}
+              className={secondaryButtonClass}
+            >
+              Sign out
             </button>
-          </div>
+          )}
+          <button type="button" onClick={() => void reload()} className={secondaryButtonClass}>
+            Refresh
+          </button>
         </div>
-      </div>
+      </StickyHeader>
 
       <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-10 sm:px-6">
         <header className={`${panelClass} p-8`}>
