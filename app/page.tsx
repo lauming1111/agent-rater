@@ -148,6 +148,7 @@ export default function Home() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [mySubmissions, setMySubmissions] = useState<MySubmission[]>([]);
   const [isMySubmissionsLoading, setIsMySubmissionsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [sortOption, setSortOption] = useState<
     "latest" | "rating-desc" | "rating-asc" | "tags-desc" | "name-asc" | "name-desc"
   >("latest");
@@ -300,6 +301,15 @@ export default function Home() {
       setIsMySubmissionsLoading(false);
     }
   }, [authUser]);
+
+  const refreshAll = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([refreshFromApi(), refreshMySubmissions()]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refreshFromApi, refreshMySubmissions]);
 
   useEffect(() => {
     void refreshFromApi();
@@ -1011,6 +1021,18 @@ export default function Home() {
                   <option value="name-desc">Name: Z → A</option>
                 </select>
               </label>
+              <button
+                type="button"
+                onClick={() => void refreshAll()}
+                disabled={isRefreshing || isLoading}
+                className={`inline-flex items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold transition ${
+                  isDark
+                    ? "border-slate-700 bg-slate-900 text-slate-100 hover:border-emerald-400 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    : "border-slate-200 bg-white text-slate-800 hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                }`}
+              >
+                {isRefreshing || isLoading ? "Refreshing…" : "Refresh"}
+              </button>
               <span
                 className={`rounded-full px-4 py-2 text-xs font-semibold ${isDark ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-700"
                   }`}
