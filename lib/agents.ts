@@ -268,10 +268,10 @@ export async function listAgentsWithExperiences(limit = 50) {
   const ddb = getDocClient();
   const tableName = getTableName();
 
-  const groups = new Map<string, { profile: AgentProfile; ids: string[] }>();
   let lastEvaluatedKey: Record<string, unknown> | undefined = undefined;
+  const profiles: AgentProfile[] = [];
 
-  while (groups.size < limit) {
+  while (profiles.length < limit) {
     const scan: { Items?: Array<Record<string, unknown>>; LastEvaluatedKey?: Record<string, unknown> } =
       await ddb.send(
       new ScanCommand({
@@ -304,89 +304,47 @@ export async function listAgentsWithExperiences(limit = 50) {
         tags: Array.isArray(item.tags) ? (item.tags as string[]) : [],
         createdAt: String(item.createdAt ?? ""),
       };
-
-      const existing = groups.get(name);
-      if (!existing) {
-        groups.set(name, { profile: profileFromItem, ids: [id] });
-        if (groups.size >= limit) break;
-        continue;
-      }
-
-      if (!existing.ids.includes(id)) existing.ids.push(id);
-
-      const mergedTags = Array.from(new Set([...(existing.profile.tags ?? []), ...(profileFromItem.tags ?? [])]));
-      existing.profile.tags = mergedTags;
-
-      if (!existing.profile.linkedin && profileFromItem.linkedin) existing.profile.linkedin = profileFromItem.linkedin;
-      if (!existing.profile.phone && profileFromItem.phone) existing.profile.phone = profileFromItem.phone;
-      if (!existing.profile.location && profileFromItem.location) existing.profile.location = profileFromItem.location;
-      if (!existing.profile.role && profileFromItem.role) existing.profile.role = profileFromItem.role;
-      if (
-        !existing.profile.phoneCountryCode &&
-        profileFromItem.phoneCountryCode
-      ) {
-        existing.profile.phoneCountryCode = profileFromItem.phoneCountryCode;
-      }
-
-      const stableId = `name#${name}`;
-      const existingHasStable = existing.ids.includes(stableId);
-      const nextIsStable = id === stableId;
-      if (!existingHasStable && nextIsStable) existing.profile.id = id;
-
-      const createdAt = profileFromItem.createdAt;
-      if (createdAt && createdAt.localeCompare(existing.profile.createdAt) > 0) {
-        existing.profile.createdAt = createdAt;
-        if (!existingHasStable && !nextIsStable) existing.profile.id = id;
-      }
+      profiles.push(profileFromItem);
+      if (profiles.length >= limit) break;
     }
 
     lastEvaluatedKey = scan.LastEvaluatedKey;
     if (!lastEvaluatedKey) break;
   }
 
-  const profiles = Array.from(groups.values()).map((group) => group.profile);
   profiles.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   const experiencesByAgentId: Record<string, Experience[]> = {};
   await Promise.all(
-    Array.from(groups.values()).map(async ({ profile, ids }) => {
+    profiles.map(async (profile) => {
+      const input: QueryCommandInput = {
+        TableName: tableName,
+        KeyConditionExpression: "PK = :pk AND begins_with(SK, :prefix)",
+        ExpressionAttributeValues: { ":pk": pk(profile.id), ":prefix": "EXPERIENCE#" },
+      };
+      const res = await ddb.send(new QueryCommand(input));
+      const items = (res.Items ?? []) as Array<Record<string, unknown>>;
       const merged: Experience[] = [];
-
-      await Promise.all(
-        ids.map(async (agentId) => {
-          const input: QueryCommandInput = {
-            TableName: tableName,
-            KeyConditionExpression: "PK = :pk AND begins_with(SK, :prefix)",
-            ExpressionAttributeValues: { ":pk": pk(agentId), ":prefix": "EXPERIENCE#" },
-          };
-          const res = await ddb.send(new QueryCommand(input));
-          const items = (res.Items ?? []) as Array<Record<string, unknown>>;
-          for (const item of items) {
-            const createdAt = String(item.createdAt ?? "");
-            if (!createdAt) continue;
-            merged.push({
-              rating: Number(item.rating ?? 0),
-              notes: String(item.notes ?? ""),
-              tags: Array.isArray(item.tags) ? (item.tags as string[]) : [],
-              countryRegion: String(item.countryRegion ?? "unknown"),
-              ghosted: Boolean(item.ghosted),
-              fakeJob: Boolean(item.fakeJob),
-              noResponse: Boolean(item.noResponse),
-              createdAt,
-            });
-          }
-        })
-      );
-
+      for (const item of items) {
+        const createdAt = String(item.createdAt ?? "");
+        if (!createdAt) continue;
+        merged.push({
+          rating: Number(item.rating ?? 0),
+          notes: String(item.notes ?? ""),
+          tags: Array.isArray(item.tags) ? (item.tags as string[]) : [],
+          countryRegion: String(item.countryRegion ?? "unknown"),
+          ghosted: Boolean(item.ghosted),
+          fakeJob: Boolean(item.fakeJob),
+          noResponse: Boolean(item.noResponse),
+          createdAt,
+        });
+      }
       merged.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       experiencesByAgentId[profile.id] = merged;
+      const latest = merged[0]?.notes;
+      profile.summary = latest || profile.summary || "";
     })
   );
-
-  for (const agent of profiles) {
-    const latest = experiencesByAgentId[agent.id]?.[0]?.notes;
-    agent.summary = latest || agent.summary || "";
-  }
 
   return { agents: profiles, experiencesByAgentId };
 }

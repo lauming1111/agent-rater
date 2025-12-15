@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 
 import {
   addExperience,
@@ -12,10 +13,6 @@ import { validateAndNormalizePhone } from "@/lib/phone";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function idFromName(name: string) {
-  return `name#${name}`;
-}
 
 function jsonError(status: number, message: string) {
   return NextResponse.json({ error: message }, { status });
@@ -65,6 +62,7 @@ export async function POST(req: Request) {
   if (!body || typeof body !== "object") return jsonError(400, "Invalid request body");
 
   const input = body as {
+    id?: string;
     name?: string;
     location?: string;
     linkedin?: string;
@@ -85,7 +83,8 @@ export async function POST(req: Request) {
 
   const linkedinRaw = typeof input.linkedin === "string" ? input.linkedin.trim() : "";
   const linkedin = linkedinRaw ? normalizeLinkedin(linkedinRaw) : "";
-  const id = idFromName(name);
+  const requestedId = typeof input.id === "string" ? input.id.trim() : "";
+  let agentIdForLog = requestedId || "";
 
   const createdAt = (typeof input.createdAt === "string" && input.createdAt) || new Date().toISOString();
 
@@ -148,7 +147,11 @@ export async function POST(req: Request) {
   try {
     const resolvedPhoneCountryCode = phoneCountryCode || "+1";
 
-    const profile = await getAgentProfile(id);
+    // Don't let mutable user input (like name) determine the PK.
+    // Only accept a client-provided id when it matches an existing agent (i.e. updating via selection).
+    const profile = requestedId ? await getAgentProfile(requestedId) : null;
+    const id = profile ? requestedId : crypto.randomUUID();
+    agentIdForLog = id;
     if (profile) {
       const mergedTags = Array.from(new Set([...(profile.tags ?? []), ...tags]));
       const resolvedPhone = phone || profile.phone;
@@ -223,7 +226,7 @@ export async function POST(req: Request) {
       { status: 201 }
     );
   } catch (err) {
-    console.error("[api/agents][POST] failed", { agentId: id }, err);
+    console.error("[api/agents][POST] failed", { agentId: agentIdForLog || null }, err);
     return jsonError(503, publicMessage(err));
   }
 }
