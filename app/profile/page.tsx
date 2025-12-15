@@ -190,13 +190,13 @@ export default function ProfilePage() {
   const fieldValueClass = `mt-1 truncate text-sm ${isDark ? "text-slate-100" : "text-slate-900"}`;
   const secondaryButtonClass = `inline-flex items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold transition ${isDark
       ? "border-slate-700 bg-slate-900 text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
-      : "border-slate-200 bg-white text-slate-800 hover:border-slate-300"
+      : "border-slate-200 bg-white text-slate-800 hover:border-emerald-300 hover:text-emerald-700"
     }`;
 
   return (
     <div className={`min-h-screen ${pageBg}`}>
       <StickyHeader themeMode={themeMode} isDark={isDark} onToggleTheme={toggleThemeMode}>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col items-end gap-2">
           {!isLoading && !user && (
             <a href="/api/auth/linkedin/start" className={secondaryButtonClass}>
               Sign in with LinkedIn
@@ -205,6 +205,9 @@ export default function ProfilePage() {
           <Link href="/" className={secondaryButtonClass}>
             Back
           </Link>
+          <button type="button" onClick={() => void reload()} className={secondaryButtonClass}>
+            Refresh
+          </button>
           {!isLoading && user && (
             <button
               type="button"
@@ -221,9 +224,6 @@ export default function ProfilePage() {
               Sign out
             </button>
           )}
-          <button type="button" onClick={() => void reload()} className={secondaryButtonClass}>
-            Refresh
-          </button>
         </div>
       </StickyHeader>
 

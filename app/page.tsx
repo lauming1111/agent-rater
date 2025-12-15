@@ -647,7 +647,7 @@ export default function Home() {
       </StickyHeader>
 
       <BackToTopButton isDark={isDark} />
-      <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-12 sm:gap-10 sm:px-6 lg:px-8">
+      <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 pb-12 pt-0 sm:gap-10 sm:px-6 lg:px-8">
         <header className={`${panelClass} p-8`}>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-500">HR Agent Directory</p>
           <h1
