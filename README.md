@@ -36,6 +36,34 @@ Item shapes used:
 - Agent profile: `PK=AGENT#{id}`, `SK=PROFILE`
 - Experience: `PK=AGENT#{id}`, `SK=EXPERIENCE#{createdAt}`
 
+## LinkedIn login (optional)
+
+Write actions (submitting agents/experiences) require a LinkedIn login via OAuth.
+
+Set these environment variables (e.g. in `.env.local`):
+
+```bash
+AUTH_SECRET=... # random long string used to sign the session cookie
+# Optional: logs LinkedIn info during OAuth.
+# - "true": safe logs (field presence + session creation)
+# - "full": logs raw LinkedIn JSON payloads (may include PII)
+AUTH_DEBUG=true
+LINKEDIN_CLIENT_ID=...
+LINKEDIN_CLIENT_SECRET=...
+# Defaults to: "openid profile email" (matches LinkedIn's current OAuth scopes UI)
+# Set this only if you're using legacy LinkedIn scopes like "r_liteprofile r_emailaddress".
+LINKEDIN_SCOPES="openid profile email"
+# Optional (recommended): let the app derive the full callback URL from the current request.
+LINKEDIN_REDIRECT_URI=auto
+# Or pin an explicit callback URL (must match LinkedIn "Authorized redirect URLs" exactly):
+# LINKEDIN_REDIRECT_URI=http://localhost:3000/api/auth/linkedin/callback
+# LINKEDIN_REDIRECT_URI=https://your-domain.com/api/auth/linkedin/callback
+```
+
+LinkedIn is strict about `redirect_uri` matching exactly. In the LinkedIn app settings, add the callback URL you intend to use:
+- Local dev: `http://localhost:3000/api/auth/linkedin/callback` (or register `127.0.0.1` if you browse via that host)
+- Production: `https://your-domain.com/api/auth/linkedin/callback`
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More

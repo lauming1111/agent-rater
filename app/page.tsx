@@ -1,5 +1,6 @@
 "use client";
 
+import { validateAndNormalizePhone } from "@/lib/phone";
 import { type ChangeEvent, type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 type Agent = {
@@ -54,12 +55,7 @@ function formatDisplayName(value: string) {
 }
 
 function normalizePhone(value: string) {
-  const digits = value.replace(/\D/g, "");
-  if (!digits) return "";
-  if (digits.length === 11 && digits.startsWith("1")) return digits.slice(1);
-  if (digits.length > 10) return digits.slice(-10);
-  if (digits.length < 10) return "";
-  return digits;
+  return value.replace(/\D/g, "").slice(0, 15);
 }
 
 function normalizeCountryCode(value: string) {
@@ -137,6 +133,9 @@ export default function Home() {
   const [experiences, setExperiences] = useState<Record<string, Experience[]>>({});
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [detailsOpenByAgentId, setDetailsOpenByAgentId] = useState<Record<string, boolean>>({});
+  const [authUser, setAuthUser] = useState<{ id: string; email?: string; name?: string; picture?: string } | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [sortOption, setSortOption] = useState<
     "latest" | "rating-desc" | "rating-asc" | "tags-desc" | "name-asc" | "name-desc"
   >("latest");
@@ -242,16 +241,33 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    try {
-      window.localStorage?.clear();
-    } catch {}
-
-    try {
-      window.sessionStorage?.clear();
-    } catch {}
-
     void refreshFromApi();
   }, [refreshFromApi]);
+
+  useEffect(() => {
+    const authErr = new URLSearchParams(window.location.search).get("authError");
+    if (authErr) {
+      setAuthError(authErr === "state_mismatch" ? "LinkedIn sign-in failed. Please try again." : "LinkedIn sign-in failed.");
+    }
+
+    const load = async () => {
+      setIsAuthLoading(true);
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        if (!res.ok) throw new Error("Failed to load auth state");
+        const data = (await res.json()) as {
+          user?: { id: string; email?: string; name?: string; picture?: string } | null;
+        };
+        setAuthUser(data.user ?? null);
+      } catch {
+        setAuthUser(null);
+      } finally {
+        setIsAuthLoading(false);
+      }
+    };
+
+    void load();
+  }, []);
 
   useEffect(() => {
     const media = window.matchMedia?.("(prefers-color-scheme: dark)");
@@ -337,6 +353,10 @@ export default function Home() {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (isSaving) return;
+    if (!authUser) {
+      setSaveError("Please sign in with LinkedIn to submit.");
+      return;
+    }
 
     setSaveError(null);
     const name = normalizeName(formData.name);
@@ -346,6 +366,18 @@ export default function Home() {
     const ratingValue = Number(formData.rating);
     const phoneCountryCode = normalizeCountryCode(formData.phoneCountryCode) || "+1";
     const phone = normalizePhone(formData.phone);
+    const phoneRaw = formData.phone.trim();
+    let validatedPhoneCountryCode = phoneCountryCode;
+    let validatedPhone = phone;
+    if (phoneRaw) {
+      const validated = validateAndNormalizePhone(phoneCountryCode, phone);
+      if (!validated) {
+        setSaveError("Invalid mobile phone for country code.");
+        return;
+      }
+      validatedPhoneCountryCode = validated.phoneCountryCode;
+      validatedPhone = validated.phone;
+    }
     const locationInput = formData.location.trim();
     const countryRegion = normalizeCountryRegion(locationInput);
     const focusAreaTags = filterOutQuickTags(
@@ -363,27 +395,27 @@ export default function Home() {
     setIsSaving(true);
 
     const payload = existingAgent
-      ? {
-          id: existingAgent.id,
-          name,
-          location: locationInput ? countryRegion : existingAgent.location,
-          linkedin: linkedin || existingAgent.linkedin,
-          phoneCountryCode: phone ? phoneCountryCode : undefined,
-          phone,
-          tags: focusAreaTags,
-          rating: ratingValue,
-          notes: formData.summary.trim(),
-          experienceTags: commentTags,
-          countryRegion,
-          createdAt: createdAt.toISOString(),
-        }
+          ? {
+              id: existingAgent.id,
+              name,
+              location: locationInput ? countryRegion : existingAgent.location,
+              linkedin: linkedin || existingAgent.linkedin,
+              phoneCountryCode: validatedPhone ? validatedPhoneCountryCode : undefined,
+              phone: validatedPhone,
+              tags: focusAreaTags,
+              rating: ratingValue,
+              notes: formData.summary.trim(),
+              experienceTags: commentTags,
+              countryRegion,
+              createdAt: createdAt.toISOString(),
+            }
       : {
           id: crypto.randomUUID(),
           name,
           location: countryRegion,
           linkedin,
-          phoneCountryCode,
-          phone,
+          phoneCountryCode: validatedPhone ? validatedPhoneCountryCode : phoneCountryCode,
+          phone: validatedPhone,
           tags: focusAreaTags,
           rating: ratingValue,
           notes: formData.summary.trim(),
@@ -458,28 +490,72 @@ export default function Home() {
   return (
     <div className={`min-h-screen ${pageBg}`}>
       <div className="flex justify-end px-4 pt-6 sm:px-6 lg:px-10">
-        <button
-          type="button"
-          onClick={() => {
-            if (themeMode === "system") {
-              setThemeMode(isDark ? "light" : "dark");
-              return;
-            }
-            if (themeMode === "dark") {
-              setThemeMode("light");
-              return;
-            }
-            setThemeMode("system");
-          }}
-          className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${isDark
-              ? "border-slate-700 bg-slate-800 text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
-              : "border-slate-200 bg-slate-50 text-slate-800 hover:border-emerald-300 hover:text-emerald-700"
-            }`}
-        >
-          {themeMode === "system"
-            ? `Theme: System (${isDark ? "Dark" : "Light"})`
-            : `Theme: ${themeMode === "dark" ? "Dark" : "Light"}`}
-        </button>
+        <div className="flex flex-col items-end gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (themeMode === "system") {
+                setThemeMode(isDark ? "light" : "dark");
+                return;
+              }
+              if (themeMode === "dark") {
+                setThemeMode("light");
+                return;
+              }
+              setThemeMode("system");
+            }}
+            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${isDark
+                ? "border-slate-700 bg-slate-800 text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
+                : "border-slate-200 bg-slate-50 text-slate-800 hover:border-emerald-300 hover:text-emerald-700"
+              }`}
+          >
+            {themeMode === "system"
+              ? `Theme: System (${isDark ? "Dark" : "Light"})`
+              : `Theme: ${themeMode === "dark" ? "Dark" : "Light"}`}
+          </button>
+          <div className="flex items-center gap-3">
+            {!isAuthLoading && !authUser && (
+              <a
+                href="/api/auth/linkedin/start"
+                className={`inline-flex items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold transition ${isDark
+                  ? "border-slate-700 bg-slate-900 text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
+                  : "border-slate-200 bg-white text-slate-800 hover:border-emerald-300 hover:text-emerald-700"
+                  }`}
+              >
+                Sign in with LinkedIn
+              </a>
+            )}
+            {!isAuthLoading && authUser && (
+              <div className="flex flex-col items-end gap-2">
+                <a
+                  href="/profile"
+                  className={`inline-flex items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold transition ${isDark
+                    ? "border-slate-700 bg-slate-900 text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
+                    : "border-slate-200 bg-white text-slate-800 hover:border-emerald-300 hover:text-emerald-700"
+                    }`}
+                >
+                  My Profile
+                </a>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await fetch("/api/auth/logout", { method: "POST" });
+                    } finally {
+                      setAuthUser(null);
+                    }
+                  }}
+                  className={`inline-flex items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold transition ${isDark
+                    ? "border-slate-700 bg-slate-900 text-slate-100 hover:border-slate-500"
+                    : "border-slate-200 bg-white text-slate-800 hover:border-slate-300"
+                    }`}
+                >
+                  Sign out
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
       <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-12 sm:gap-10 sm:px-6 lg:px-8">
         <header className={`${panelClass} p-8`}>
@@ -536,6 +612,29 @@ export default function Home() {
               </span>
             )}
           </div>
+          {authError && (
+            <div
+              role="alert"
+              className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${isDark ? "border-rose-900/50 bg-rose-950/40 text-rose-100" : "border-rose-200 bg-rose-50 text-rose-800"
+                }`}
+            >
+              {authError}
+            </div>
+          )}
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className={`text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+              {isAuthLoading ? (
+                "Checking sign-in…"
+              ) : authUser ? (
+                <span>
+                  Signed in with LinkedIn{authUser.email ? ` (${authUser.email})` : ""}.
+                </span>
+              ) : (
+                "Sign in with LinkedIn to add submissions."
+              )}
+            </div>
+          </div>
+          <fieldset disabled={!authUser || isSaving} className={!authUser ? "opacity-60" : ""}>
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label className={labelClass} htmlFor="name">
@@ -597,9 +696,9 @@ export default function Home() {
                   type="tel"
                   inputMode="numeric"
                   value={formData.phone}
-                  maxLength={10}
+                  maxLength={15}
                   onChange={(e) => {
-                    const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+                    const digits = e.target.value.replace(/\D/g, "").slice(0, 15);
                     setFormData((prev) => ({ ...prev, phone: digits }));
                   }}
                   className={`${inputBaseClass} flex-1`}
@@ -703,7 +802,7 @@ export default function Home() {
           <div className="mt-6 flex items-center gap-4">
             <button
               type="submit"
-              disabled={isSaving}
+              disabled={isSaving || !authUser}
               className={`inline-flex items-center justify-center gap-2 rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-emerald-500/30 ${
                 isSaving ? "cursor-not-allowed opacity-70 hover:translate-y-0 hover:shadow-sm" : ""
               }`}
@@ -720,6 +819,7 @@ export default function Home() {
               Saved to the database.
             </p>
           </div>
+          </fieldset>
           {saveError && (
             <div
               role="alert"

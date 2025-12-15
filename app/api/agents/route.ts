@@ -7,9 +7,15 @@ import {
   listAgentsWithExperiences,
   putAgentProfile,
 } from "@/lib/agents";
+import { requireAuth } from "@/lib/auth";
+import { validateAndNormalizePhone } from "@/lib/phone";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function idFromName(name: string) {
+  return `name#${name}`;
+}
 
 function jsonError(status: number, message: string) {
   return NextResponse.json({ error: message }, { status });
@@ -20,15 +26,6 @@ function publicMessage(err: unknown) {
     return err instanceof Error ? err.message : "Unknown error";
   }
   return "Service unavailable";
-}
-
-function normalizePhone(value: string) {
-  const digits = value.replace(/\D/g, "");
-  if (!digits) return "";
-  if (digits.length === 11 && digits.startsWith("1")) return digits.slice(1);
-  if (digits.length > 10) return digits.slice(-10);
-  if (digits.length < 10) return "";
-  return digits;
 }
 
 function normalizeName(value: string) {
@@ -51,6 +48,13 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  let session;
+  try {
+    session = requireAuth(req);
+  } catch {
+    return jsonError(401, "Please sign in with LinkedIn to submit.");
+  }
+
   let body: unknown;
   try {
     body = await req.json();
@@ -61,14 +65,11 @@ export async function POST(req: Request) {
   if (!body || typeof body !== "object") return jsonError(400, "Invalid request body");
 
   const input = body as {
-    id?: string;
     name?: string;
-    role?: string;
     location?: string;
     linkedin?: string;
     phoneCountryCode?: string;
     phone?: string;
-    summary?: string;
     tags?: string[] | string;
     rating?: number;
     notes?: string;
@@ -82,11 +83,9 @@ export async function POST(req: Request) {
   const name = typeof input.name === "string" ? normalizeName(input.name) : "";
   if (!name) return jsonError(400, "Missing name");
 
-  const idInput = typeof input.id === "string" && input.id.trim() ? input.id.trim() : "";
-  const id = idInput || crypto.randomUUID();
-
   const linkedinRaw = typeof input.linkedin === "string" ? input.linkedin.trim() : "";
   const linkedin = linkedinRaw ? normalizeLinkedin(linkedinRaw) : "";
+  const id = idFromName(name);
 
   const createdAt = (typeof input.createdAt === "string" && input.createdAt) || new Date().toISOString();
 
@@ -109,13 +108,22 @@ export async function POST(req: Request) {
             .filter(Boolean)
         : [];
 
-  const roleInput = typeof input.role === "string" ? input.role.trim() : "";
   const locationInput = typeof input.location === "string" ? input.location.trim() : "";
-  const role = roleInput || "HR Agent";
   const location = locationInput || "Unknown";
   const phoneCountryCode =
     typeof input.phoneCountryCode === "string" ? normalizeCountryCode(input.phoneCountryCode) : "";
-  const phone = typeof input.phone === "string" ? normalizePhone(input.phone) : "";
+  const phoneRaw = typeof input.phone === "string" ? input.phone : "";
+  let phone = typeof input.phone === "string" ? input.phone.trim() : "";
+  if (phoneRaw.trim()) {
+    const validated = validateAndNormalizePhone(phoneCountryCode, phoneRaw);
+    if (!validated) return jsonError(400, "Invalid mobile phone for country code.");
+    phone = validated.phone;
+  } else {
+    phone = "";
+  }
+  if (typeof input.phoneCountryCode === "string" && input.phoneCountryCode.trim() && !phoneCountryCode) {
+    return jsonError(400, "Mobile phone country code is invalid.");
+  }
 
   const rating = typeof input.rating === "number" ? input.rating : undefined;
   const notes = typeof input.notes === "string" ? input.notes : "";
@@ -131,6 +139,8 @@ export async function POST(req: Request) {
           ghosted: false,
           fakeJob: false,
           noResponse: false,
+          createdBySub: session.sub,
+          createdByEmail: session.email,
           createdAt,
         }
       : undefined;
@@ -138,56 +148,52 @@ export async function POST(req: Request) {
   try {
     const resolvedPhoneCountryCode = phoneCountryCode || "+1";
 
-    if (idInput) {
-      const profile = await getAgentProfile(id);
-      if (profile) {
-        const mergedTags = Array.from(new Set([...(profile.tags ?? []), ...tags]));
-        const resolvedPhone = phone || profile.phone;
-        const resolvedLinkedin = linkedin || profile.linkedin || "";
-        const resolvedRole = roleInput || profile.role || role;
-        const resolvedLocation = locationInput || profile.location || location;
-        const resolvedPhoneCountryCodeValue = phone ? resolvedPhoneCountryCode : profile.phoneCountryCode || "+1";
+    const profile = await getAgentProfile(id);
+    if (profile) {
+      const mergedTags = Array.from(new Set([...(profile.tags ?? []), ...tags]));
+      const resolvedPhone = phone || profile.phone;
+      const resolvedLinkedin = linkedin || profile.linkedin || "";
+      const resolvedLocation = locationInput || profile.location || location;
+      const resolvedPhoneCountryCodeValue = phone ? resolvedPhoneCountryCode : profile.phoneCountryCode || "+1";
 
-        await putAgentProfile({
-          ...profile,
-          name,
-          role: resolvedRole,
-          location: resolvedLocation,
-          linkedin: resolvedLinkedin,
-          phoneCountryCode: resolvedPhoneCountryCodeValue,
-          phone: resolvedPhone,
-          tags: mergedTags,
-          createdAt,
-        });
+      await putAgentProfile({
+        ...profile,
+        name,
+        location: resolvedLocation,
+        linkedin: resolvedLinkedin,
+        phoneCountryCode: resolvedPhoneCountryCodeValue,
+        phone: resolvedPhone,
+        tags: mergedTags,
+        createdAt,
+      });
 
-        if (experience) await addExperience(id, experience);
+      if (experience) await addExperience(id, experience);
 
-        return NextResponse.json(
-          {
-            agent: {
-              id,
-              name,
-              role: resolvedRole,
-              location: resolvedLocation,
-              linkedin: resolvedLinkedin,
-              phoneCountryCode: resolvedPhoneCountryCodeValue,
-              phone: resolvedPhone,
-              summary: experience?.notes ?? notes,
-              tags: mergedTags,
-              createdAt,
-            },
-            experience,
+      return NextResponse.json(
+        {
+          agent: {
+            id,
+            name,
+            role: profile.role,
+            location: resolvedLocation,
+            linkedin: resolvedLinkedin,
+            phoneCountryCode: resolvedPhoneCountryCodeValue,
+            phone: resolvedPhone,
+            summary: experience?.notes ?? notes,
+            tags: mergedTags,
+            createdAt,
           },
-          { status: 200 }
-        );
-      }
+          experience,
+        },
+        { status: 200 }
+      );
     }
 
     const res = await createAgentWithInitialExperience({
       agent: {
         id,
         name,
-        role,
+        role: "HR Agent",
         location,
         linkedin,
         phoneCountryCode: resolvedPhoneCountryCode,
@@ -203,7 +209,7 @@ export async function POST(req: Request) {
         agent: {
           id,
           name,
-          role,
+          role: "HR Agent",
           location,
           linkedin,
           phoneCountryCode: resolvedPhoneCountryCode,

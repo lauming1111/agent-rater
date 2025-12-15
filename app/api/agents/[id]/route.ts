@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { addExperience, getAgentWithExperiences } from "@/lib/agents";
+import { requireAuth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,6 +31,13 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  let session;
+  try {
+    session = requireAuth(req);
+  } catch {
+    return jsonError(401, "Please sign in with LinkedIn to submit.");
+  }
+
   const { id } = await ctx.params;
   if (!id) return jsonError(400, "Missing agent id");
 
@@ -77,6 +85,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       ghosted: Boolean(input.ghosted),
       fakeJob: Boolean(input.fakeJob),
       noResponse: Boolean(input.noResponse),
+      createdBySub: session.sub,
+      createdByEmail: session.email,
       createdAt,
     });
     return NextResponse.json({ ok: true }, { status: 201 });
