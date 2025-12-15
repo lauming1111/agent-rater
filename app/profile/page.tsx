@@ -271,7 +271,7 @@ export default function ProfilePage() {
 
         <section className={panelClass}>
           <div className="flex items-center justify-between gap-4">
-            <h2 className={`text-sm font-semibold ${headingTextClass}`}>Your submissions (from DB)</h2>
+            <h2 className={`text-sm font-semibold ${headingTextClass}`}>Your submissions</h2>
             {user && (
               <button
                 type="button"
@@ -297,6 +297,7 @@ export default function ProfilePage() {
             <div className="mt-4 space-y-3">
               {submissions.map((item, idx) => (
                 <details
+                  open
                   key={`${item.agentId}:${item.createdAt}`}
                   className={`rounded-2xl border px-4 py-3 ${
                     isDark ? "border-slate-800 bg-slate-900/70" : "border-slate-200 bg-slate-50"
