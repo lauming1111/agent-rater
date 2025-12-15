@@ -3,6 +3,16 @@
 import { validateAndNormalizePhone } from "@/lib/phone";
 import { type ChangeEvent, type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
+type MySubmission = {
+  agentId: string;
+  createdAt: string;
+  rating: number;
+  notes: string;
+  countryRegion: string;
+  quickTags: string[];
+  focusTags: string[];
+};
+
 type Agent = {
   id: string;
   name: string;
@@ -136,6 +146,8 @@ export default function Home() {
   const [authUser, setAuthUser] = useState<{ id: string; email?: string; name?: string; picture?: string } | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [mySubmissions, setMySubmissions] = useState<MySubmission[]>([]);
+  const [isMySubmissionsLoading, setIsMySubmissionsLoading] = useState(false);
   const [sortOption, setSortOption] = useState<
     "latest" | "rating-desc" | "rating-asc" | "tags-desc" | "name-asc" | "name-desc"
   >("latest");
@@ -240,9 +252,62 @@ export default function Home() {
     }
   }, []);
 
+  const refreshMySubmissions = useCallback(async () => {
+    if (!authUser) {
+      setMySubmissions([]);
+      return true;
+    }
+
+    setIsMySubmissionsLoading(true);
+    try {
+      const res = await fetch("/api/profile/submissions", { cache: "no-store" });
+      if (!res.ok) throw new Error(`Failed to load your submissions (${res.status})`);
+
+      const data = (await res.json()) as {
+        submissions?: Array<{
+          agentId?: string;
+          createdAt?: string;
+          rating?: number;
+          notes?: string;
+          countryRegion?: string;
+          quickTags?: string[];
+          focusTags?: string[];
+        }>;
+      };
+
+      const next: MySubmission[] = [];
+      for (const item of data.submissions ?? []) {
+        const agentId = typeof item.agentId === "string" ? item.agentId : "";
+        const createdAt = typeof item.createdAt === "string" ? item.createdAt : "";
+        if (!agentId || !createdAt) continue;
+        next.push({
+          agentId,
+          createdAt,
+          rating: Number(item.rating ?? 0),
+          notes: typeof item.notes === "string" ? item.notes : "",
+          countryRegion: typeof item.countryRegion === "string" ? item.countryRegion : "",
+          quickTags: Array.isArray(item.quickTags) ? item.quickTags.filter((t) => typeof t === "string") : [],
+          focusTags: Array.isArray(item.focusTags) ? item.focusTags.filter((t) => typeof t === "string") : [],
+        });
+      }
+
+      setMySubmissions(next);
+      return true;
+    } catch {
+      setMySubmissions([]);
+      return false;
+    } finally {
+      setIsMySubmissionsLoading(false);
+    }
+  }, [authUser]);
+
   useEffect(() => {
     void refreshFromApi();
   }, [refreshFromApi]);
+
+  useEffect(() => {
+    void refreshMySubmissions();
+  }, [refreshMySubmissions]);
 
   useEffect(() => {
     const authErr = new URLSearchParams(window.location.search).get("authError");
@@ -330,19 +395,50 @@ export default function Home() {
     : "rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg";
   const labelClass = isDark ? "text-sm text-slate-200" : "text-sm text-slate-700";
 
+  const mySubmissionByAgentId = useMemo(() => {
+    const map = new Map<string, MySubmission>();
+    for (const submission of mySubmissions) {
+      if (!submission.agentId) continue;
+      const existing = map.get(submission.agentId);
+      if (!existing) {
+        map.set(submission.agentId, submission);
+        continue;
+      }
+      const nextTime = new Date(submission.createdAt).getTime();
+      const existingTime = new Date(existing.createdAt).getTime();
+      if (Number.isFinite(nextTime) && Number.isFinite(existingTime)) {
+        if (nextTime > existingTime) map.set(submission.agentId, submission);
+      } else if (submission.createdAt > existing.createdAt) {
+        map.set(submission.agentId, submission);
+      }
+    }
+    return map;
+  }, [mySubmissions]);
+
   const selectedAgent = selectedAgentId ? agents.find((agent) => agent.id === selectedAgentId) : undefined;
+  const selectedMySubmission = selectedAgentId ? (mySubmissionByAgentId.get(selectedAgentId) ?? null) : null;
+  const isEditingMySubmission = Boolean(selectedAgent && selectedMySubmission);
+
   const selectAgentForSubmission = (agent: Agent) => {
     setSelectedAgentId(agent.id);
-    setSelectedQuickTags([]);
+    const mySubmission = mySubmissionByAgentId.get(agent.id) ?? null;
+    setSelectedQuickTags(mySubmission ? mySubmission.quickTags : []);
     setFormData((prev) => ({
       ...prev,
       name: formatDisplayName(agent.name),
-      location: agent.location === "unknown" ? "" : agent.location,
+      location: mySubmission
+        ? mySubmission.countryRegion === "unknown"
+          ? ""
+          : mySubmission.countryRegion
+        : agent.location === "unknown"
+          ? ""
+          : agent.location,
       linkedin: agent.linkedin,
       phoneCountryCode: normalizeCountryCode(agent.phoneCountryCode) || "+1",
       phone: normalizePhone(agent.phone),
-      tags: (agent.tags ?? []).join(", "),
-      summary: "",
+      tags: (mySubmission ? filterOutQuickTags(mySubmission.focusTags) : (agent.tags ?? [])).join(", "),
+      summary: mySubmission ? mySubmission.notes : "",
+      rating: mySubmission ? mySubmission.rating : prev.rating,
     }));
 
     if (typeof window !== "undefined") {
@@ -355,6 +451,10 @@ export default function Home() {
     if (isSaving) return;
     if (!authUser) {
       setSaveError("Please sign in with LinkedIn to submit.");
+      return;
+    }
+    if (selectedAgent && isMySubmissionsLoading) {
+      setSaveError("Loading your submissions. Please try again in a moment.");
       return;
     }
 
@@ -391,45 +491,62 @@ export default function Home() {
     const linkedinInput = formData.linkedin.trim();
     const linkedin = linkedinInput ? normalizeLinkedin(linkedinInput) : "";
     const existingAgent = selectedAgent;
+    const existingSubmission = selectedMySubmission;
 
     setIsSaving(true);
 
-    const payload = existingAgent
-          ? {
-              id: existingAgent.id,
-              name,
-              location: locationInput ? countryRegion : existingAgent.location,
-              linkedin: linkedin || existingAgent.linkedin,
-              phoneCountryCode: validatedPhone ? validatedPhoneCountryCode : undefined,
-              phone: validatedPhone,
-              tags: focusAreaTags,
+    try {
+      const res = existingAgent && existingSubmission
+        ? await fetch("/api/profile/submissions", {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              agentId: existingAgent.id,
+              createdAt: existingSubmission.createdAt,
+              agentName: name,
               rating: ratingValue,
               notes: formData.summary.trim(),
-              experienceTags: commentTags,
               countryRegion,
-              createdAt: createdAt.toISOString(),
-            }
-      : {
-          id: crypto.randomUUID(),
-          name,
-          location: countryRegion,
-          linkedin,
-          phoneCountryCode: validatedPhone ? validatedPhoneCountryCode : phoneCountryCode,
-          phone: validatedPhone,
-          tags: focusAreaTags,
-          rating: ratingValue,
-          notes: formData.summary.trim(),
-          experienceTags: commentTags,
-          countryRegion,
-          createdAt: createdAt.toISOString(),
-        };
-
-    try {
-      const res = await fetch("/api/agents", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+              quickTags: commentTags,
+              focusTags: focusAreaTags,
+              phoneCountryCode: validatedPhone ? validatedPhoneCountryCode : undefined,
+              phone: validatedPhone,
+            }),
+          })
+        : await fetch("/api/agents", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(
+              existingAgent
+                ? {
+                    id: existingAgent.id,
+                    name,
+                    location: locationInput ? countryRegion : existingAgent.location,
+                    linkedin: linkedin || existingAgent.linkedin,
+                    phoneCountryCode: validatedPhone ? validatedPhoneCountryCode : undefined,
+                    phone: validatedPhone,
+                    tags: focusAreaTags,
+                    rating: ratingValue,
+                    notes: formData.summary.trim(),
+                    experienceTags: commentTags,
+                    countryRegion,
+                    createdAt: createdAt.toISOString(),
+                  }
+                : {
+                    name,
+                    location: countryRegion,
+                    linkedin,
+                    phoneCountryCode: validatedPhone ? validatedPhoneCountryCode : phoneCountryCode,
+                    phone: validatedPhone,
+                    tags: focusAreaTags,
+                    rating: ratingValue,
+                    notes: formData.summary.trim(),
+                    experienceTags: commentTags,
+                    countryRegion,
+                    createdAt: createdAt.toISOString(),
+                  }
+            ),
+          });
 
       if (!res.ok) {
         let errorMessage = `Failed to save (${res.status})`;
@@ -441,6 +558,7 @@ export default function Home() {
       }
 
       await refreshFromApi();
+      await refreshMySubmissions();
 
       setFormData({
         name: "",
@@ -580,7 +698,7 @@ export default function Home() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-600">User input</p>
               <h2 className={`text-xl font-semibold ${isDark ? "text-slate-50" : "text-slate-900"}`}>
-                Add an HR agent
+                {selectedAgent ? (isEditingMySubmission ? "Edit your review" : "Add your review") : "Add an HR agent"}
               </h2>
             </div>
             {selectedAgent ? (
@@ -590,7 +708,8 @@ export default function Home() {
                     isDark ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-700"
                   }`}
                 >
-                  Adding submission: {formatDisplayName(selectedAgent.name)}
+                  {isEditingMySubmission ? "Editing your submission: " : "Adding submission: "}
+                  {formatDisplayName(selectedAgent.name)}
                 </span>
                 <button
                   type="button"
@@ -813,7 +932,7 @@ export default function Home() {
                   className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
                 />
               )}
-              {isSaving ? "Saving..." : "Add to directory"}
+              {isSaving ? "Saving..." : isEditingMySubmission ? "Update your review" : "Add to directory"}
             </button>
             <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
               Saved to the database.
@@ -1064,17 +1183,19 @@ export default function Home() {
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => selectAgentForSubmission(agent)}
-                            className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                              isDark
-                                ? "border-slate-700 bg-slate-900 text-slate-200 hover:border-emerald-400 hover:text-emerald-200"
-                                : "border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-300 hover:text-emerald-700"
-                            }`}
-                          >
-                            Add submission
-                          </button>
+                          {authUser && (
+                            <button
+                              type="button"
+                              onClick={() => selectAgentForSubmission(agent)}
+                              className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                                isDark
+                                  ? "border-slate-700 bg-slate-900 text-slate-200 hover:border-emerald-400 hover:text-emerald-200"
+                                  : "border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-300 hover:text-emerald-700"
+                              }`}
+                            >
+                              {mySubmissionByAgentId.has(agent.id) ? "Edit comment" : "Add submission"}
+                            </button>
+                          )}
                           <div
                             className={`rounded-full px-3 py-1 text-xs font-semibold ${isDark ? "bg-slate-800 text-slate-100" : "bg-slate-100 text-slate-800"
                               }`}
