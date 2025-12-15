@@ -44,24 +44,44 @@ function formatWhen(value: string) {
   return date.toLocaleString();
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function Field({
+  label,
+  value,
+  labelClassName,
+  valueClassName,
+}: {
+  label: string;
+  value: string;
+  labelClassName: string;
+  valueClassName: string;
+}) {
   if (!value.trim()) return null;
   return (
     <div className="min-w-0">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">{label}</p>
-      <p className="mt-1 truncate text-sm text-slate-900">{value}</p>
+      <p className={labelClassName}>{label}</p>
+      <p className={valueClassName}>{value}</p>
     </div>
   );
 }
 
-function Chips({ label, tags }: { label: string; tags: string[] }) {
+function Chips({
+  label,
+  tags,
+  labelClassName,
+  chipClassName,
+}: {
+  label: string;
+  tags: string[];
+  labelClassName: string;
+  chipClassName: string;
+}) {
   if (!tags.length) return null;
   return (
     <div>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">{label}</p>
+      <p className={labelClassName}>{label}</p>
       <div className="mt-2 flex flex-wrap gap-2">
         {tags.map((tag) => (
-          <span key={tag} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+          <span key={tag} className={chipClassName}>
             {tag}
           </span>
         ))}
@@ -110,11 +130,29 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [themeMode, setThemeMode] = useState<"system" | "light" | "dark">("system");
+  const [systemTheme, setSystemTheme] = useState<"light" | "dark">("light");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [draft, setDraft] = useState<EditDraft | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!media) return;
+
+    const apply = () => setSystemTheme(media.matches ? "dark" : "light");
+    apply();
+
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", apply);
+      return () => media.removeEventListener("change", apply);
+    }
+
+    media.addListener(apply);
+    return () => media.removeListener(apply);
+  }, []);
 
   const reload = useCallback(async () => {
     setIsLoading(true);
@@ -151,28 +189,97 @@ export default function ProfilePage() {
 
   const exportJson = useMemo(() => JSON.stringify(submissions, null, 2), [submissions]);
 
+  const effectiveTheme = themeMode === "system" ? systemTheme : themeMode;
+  const isDark = effectiveTheme === "dark";
+  const pageBg = isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900";
+  const panelClass = isDark
+    ? "rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-lg shadow-black/40"
+    : "rounded-3xl border border-slate-200 bg-white p-6 shadow-sm";
+  const inputBaseClass = isDark
+    ? "w-full rounded-xl border border-slate-800 bg-slate-900 px-4 py-2 text-sm text-slate-100 outline-none transition focus:border-emerald-400 focus:bg-slate-900"
+    : "w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none transition focus:border-emerald-400";
+  const chipClass = isDark
+    ? "rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-100"
+    : "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700";
+  const smallLabelClass = `text-[11px] font-semibold uppercase tracking-[0.22em] ${isDark ? "text-slate-400" : "text-slate-500"}`;
+  const mutedTextClass = isDark ? "text-slate-300" : "text-slate-600";
+  const headingTextClass = isDark ? "text-slate-50" : "text-slate-900";
+  const fieldValueClass = `mt-1 truncate text-sm ${isDark ? "text-slate-100" : "text-slate-900"}`;
+  const secondaryButtonClass = `inline-flex items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold transition ${isDark
+      ? "border-slate-700 bg-slate-900 text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
+      : "border-slate-200 bg-white text-slate-800 hover:border-slate-300"
+    }`;
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-10 sm:px-6">
-        <header className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-600">My Profile</p>
-            <h1 className="mt-2 text-2xl font-semibold text-slate-900">Account & submissions</h1>
-          </div>
-          <Link
-            href="/"
-            className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-800 transition hover:border-slate-300"
+    <div className={`min-h-screen ${pageBg}`}>
+      <div className="flex justify-end px-4 pt-6 sm:px-6 lg:px-10">
+        <div className="flex flex-col items-end gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (themeMode === "system") {
+                setThemeMode(isDark ? "light" : "dark");
+                return;
+              }
+              if (themeMode === "dark") {
+                setThemeMode("light");
+                return;
+              }
+              setThemeMode("system");
+            }}
+            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition ${isDark
+                ? "border-slate-700 bg-slate-800 text-slate-100 hover:border-emerald-400 hover:text-emerald-200"
+                : "border-slate-200 bg-slate-50 text-slate-800 hover:border-emerald-300 hover:text-emerald-700"
+              }`}
           >
-            Back
-          </Link>
+            {themeMode === "system"
+              ? `Theme: System (${isDark ? "Dark" : "Light"})`
+              : `Theme: ${themeMode === "dark" ? "Dark" : "Light"}`}
+          </button>
+          <div className="flex items-center gap-3">
+            {!isLoading && !user && (
+              <a href="/api/auth/linkedin/start" className={secondaryButtonClass}>
+                Sign in with LinkedIn
+              </a>
+            )}
+            <Link href="/" className={secondaryButtonClass}>
+              Back
+            </Link>
+            {!isLoading && user && (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await fetch("/api/auth/logout", { method: "POST" });
+                  } finally {
+                    setUser(null);
+                    setSubmissions([]);
+                  }
+                }}
+                className={secondaryButtonClass}
+              >
+                Sign out
+              </button>
+            )}
+            <button type="button" onClick={() => void reload()} className={secondaryButtonClass}>
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-10 sm:px-6">
+        <header className={`${panelClass} p-8`}>
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-600">My Profile</p>
+          <h1 className={`mt-2 text-2xl font-semibold ${headingTextClass}`}>Account & submissions</h1>
         </header>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">LinkedIn user</h2>
+        <section className={panelClass}>
+          <h2 className={`text-sm font-semibold ${headingTextClass}`}>LinkedIn user</h2>
           {isLoading ? (
-            <p className="mt-2 text-sm text-slate-600">Loading...</p>
+            <p className={`mt-2 text-sm ${mutedTextClass}`}>Loading...</p>
           ) : !user ? (
-            <p className="mt-2 text-sm text-slate-600">Not signed in.</p>
+            <p className={`mt-2 text-sm ${mutedTextClass}`}>Not signed in.</p>
           ) : (
             <div className="mt-4 flex items-center gap-4">
               {user.picture ? (
@@ -181,70 +288,50 @@ export default function ProfilePage() {
                   alt={user.name ? `${user.name} profile` : "LinkedIn profile"}
                   width={56}
                   height={56}
-                  className="h-14 w-14 rounded-full border border-slate-200 object-cover"
+                  className={`h-14 w-14 rounded-full border object-cover ${isDark ? "border-slate-800" : "border-slate-200"}`}
                   unoptimized
                 />
               ) : (
                 <div
-                  className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700"
+                  className={`flex h-14 w-14 items-center justify-center rounded-full border text-xs font-semibold ${isDark
+                      ? "border-slate-800 bg-slate-900 text-slate-200"
+                      : "border-slate-200 bg-slate-50 text-slate-700"
+                    }`}
                   aria-hidden
                 >
                   LI
                 </div>
               )}
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-900">{user.name ?? "LinkedIn user"}</p>
-                <p className="truncate text-xs text-slate-600">{user.email ?? user.id}</p>
-              </div>
-              <div className="ml-auto flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      await fetch("/api/auth/logout", { method: "POST" });
-                    } finally {
-                      setUser(null);
-                      setSubmissions([]);
-                    }
-                  }}
-                  className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-800 transition hover:border-slate-300"
-                >
-                  Sign out
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void reload()}
-                  className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-800 transition hover:border-slate-300"
-                >
-                  Refresh
-                </button>
+                <p className={`truncate text-sm font-semibold ${headingTextClass}`}>{user.name ?? "LinkedIn user"}</p>
+                <p className={`truncate text-xs ${mutedTextClass}`}>{user.email ?? user.id}</p>
               </div>
             </div>
           )}
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className={panelClass}>
           <div className="flex items-center justify-between gap-4">
-            <h2 className="text-sm font-semibold text-slate-900">Your submissions (from DB)</h2>
+            <h2 className={`text-sm font-semibold ${headingTextClass}`}>Your submissions (from DB)</h2>
             {user && (
               <button
                 type="button"
                 onClick={() => void reload()}
-                className="text-xs font-semibold underline underline-offset-4 text-slate-600 hover:text-slate-900"
+                className={`text-xs font-semibold underline underline-offset-4 ${isDark ? "text-slate-300 hover:text-slate-100" : "text-slate-600 hover:text-slate-900"}`}
               >
-                Reload
+                Refresh
               </button>
             )}
           </div>
 
-          {loadError && <p className="mt-3 text-sm text-rose-700">{loadError}</p>}
+          {loadError && <p className={`mt-3 text-sm ${isDark ? "text-rose-200" : "text-rose-700"}`}>{loadError}</p>}
 
           {!user ? (
-            <p className="mt-3 text-sm text-slate-600">Sign in to see your submission history.</p>
+            <p className={`mt-3 text-sm ${mutedTextClass}`}>Sign in to see your submission history.</p>
           ) : isLoading ? (
-            <p className="mt-3 text-sm text-slate-600">Loading...</p>
+            <p className={`mt-3 text-sm ${mutedTextClass}`}>Loading...</p>
           ) : submissions.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-600">
+            <p className={`mt-3 text-sm ${mutedTextClass}`}>
               No DB-backed submissions found yet. Only submissions created after enabling DB tracking will appear here.
             </p>
           ) : (
@@ -252,12 +339,14 @@ export default function ProfilePage() {
               {submissions.map((item, idx) => (
                 <details
                   key={`${item.agentId}:${item.createdAt}`}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                  className={`rounded-2xl border px-4 py-3 ${
+                    isDark ? "border-slate-800 bg-slate-900/70" : "border-slate-200 bg-slate-50"
+                  }`}
                 >
                   <summary className="cursor-pointer list-none">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="truncate text-sm font-semibold text-slate-900">{headline(item)}</p>
-                      <p className="text-xs text-slate-600">{formatWhen(item.createdAt)}</p>
+                      <p className={`truncate text-sm font-semibold ${headingTextClass}`}>{headline(item)}</p>
+                      <p className={`text-xs ${mutedTextClass}`}>{formatWhen(item.createdAt)}</p>
                     </div>
                   </summary>
 
@@ -265,21 +354,17 @@ export default function ProfilePage() {
                     {editingIndex === idx && draft ? (
                       <form className="grid grid-cols-1 gap-3" onSubmit={(e) => e.preventDefault()}>
                         <div className="space-y-2">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                            Agent name
-                          </p>
+                          <p className={smallLabelClass}>Full name</p>
                           <input
                             value={draft.agentName}
                             onChange={(e) =>
                               setDraft((prev) => (prev ? { ...prev, agentName: e.target.value } : prev))
                             }
-                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none focus:border-emerald-400"
+                            className={inputBaseClass}
                           />
                         </div>
                         <div className="space-y-2">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                            Rating
-                          </p>
+                          <p className={smallLabelClass}>First rating (1-5)</p>
                           <div className="flex flex-wrap gap-2">
                             {[1, 2, 3, 4, 5].map((value) => {
                               const active = draft.rating === value;
@@ -288,11 +373,14 @@ export default function ProfilePage() {
                                   key={value}
                                   type="button"
                                   onClick={() => setDraft((prev) => (prev ? { ...prev, rating: value } : prev))}
-                                  className={`rounded-full border px-3 py-2 text-sm font-semibold transition ${
-                                    active
-                                      ? "border-emerald-400 bg-emerald-50 text-emerald-700"
-                                      : "border-slate-200 bg-white text-slate-700 hover:border-emerald-200"
-                                  }`}
+                                  className={`rounded-full border px-3 py-2 text-sm font-semibold transition ${active
+                                      ? isDark
+                                        ? "border-emerald-400 bg-emerald-900/30 text-emerald-100"
+                                        : "border-emerald-400 bg-emerald-50 text-emerald-700"
+                                      : isDark
+                                        ? "border-slate-700 bg-slate-900 text-slate-200 hover:border-emerald-300"
+                                        : "border-slate-200 bg-white text-slate-700 hover:border-emerald-200"
+                                    }`}
                                 >
                                   ★ {value}
                                 </button>
@@ -302,23 +390,19 @@ export default function ProfilePage() {
                         </div>
 
                         <div className="space-y-2">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                            Location / Region
-                          </p>
+                          <p className={smallLabelClass}>Country/Region</p>
                           <input
                             value={draft.countryRegion}
                             onChange={(e) =>
                               setDraft((prev) => (prev ? { ...prev, countryRegion: e.target.value } : prev))
                             }
-                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none focus:border-emerald-400"
+                            className={inputBaseClass}
                           />
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-2">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                              Phone CC
-                            </p>
+                            <p className={smallLabelClass}>Mobile phone country code</p>
                             <input
                               value={draft.phoneCountryCode}
                               onChange={(e) =>
@@ -326,12 +410,12 @@ export default function ProfilePage() {
                                   prev ? { ...prev, phoneCountryCode: normalizeCountryCodeInput(e.target.value) } : prev
                                 )
                               }
-                              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none focus:border-emerald-400"
+                              className={inputBaseClass}
                               placeholder="+1"
                             />
                           </div>
                           <div className="space-y-2">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Phone</p>
+                            <p className={smallLabelClass}>Mobile phone</p>
                             <input
                               value={draft.phone}
                               onChange={(e) =>
@@ -339,7 +423,7 @@ export default function ProfilePage() {
                                   prev ? { ...prev, phone: normalizePhoneDigits(e.target.value) } : prev
                                 )
                               }
-                              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none focus:border-emerald-400"
+                              className={inputBaseClass}
                               placeholder="1234567890"
                               inputMode="numeric"
                               maxLength={15}
@@ -348,34 +432,33 @@ export default function ProfilePage() {
                         </div>
 
                         <div className="space-y-2">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                            Area tags
-                          </p>
+                          <p className={smallLabelClass}>Focus areas (comma separated)</p>
                           <input
                             value={draft.areaTags}
                             onChange={(e) => setDraft((prev) => (prev ? { ...prev, areaTags: e.target.value } : prev))}
-                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none focus:border-emerald-400"
+                            className={inputBaseClass}
                             placeholder="recruiting, HRBP, onboarding"
                           />
-                          <Chips label="Area tags" tags={parseTags(draft.areaTags)} />
+                          <Chips
+                            label="Focus areas"
+                            tags={parseTags(draft.areaTags)}
+                            labelClassName={smallLabelClass}
+                            chipClassName={chipClass}
+                          />
                         </div>
 
                         <div className="space-y-2">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                            Comment / Notes
-                          </p>
+                          <p className={smallLabelClass}>Comment</p>
                           <textarea
                             value={draft.notes}
                             onChange={(e) => setDraft((prev) => (prev ? { ...prev, notes: e.target.value } : prev))}
                             rows={4}
-                            className="w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none focus:border-emerald-400"
+                            className={`${inputBaseClass} resize-y`}
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                            Quick tags
-                          </p>
+                          <p className={smallLabelClass}>Tags</p>
                           <div className="flex flex-wrap gap-2 pt-1">
                             {quickTagChoices.map((tag) => {
                               const active = draft.quickTags.includes(tag);
@@ -388,11 +471,14 @@ export default function ProfilePage() {
                                       prev ? { ...prev, quickTags: toggleChoice(prev.quickTags, tag) } : prev
                                     )
                                   }
-                                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                                    active
-                                      ? "border-emerald-400 bg-emerald-50 text-emerald-700"
-                                      : "border-slate-200 bg-white text-slate-700 hover:border-emerald-200"
-                                  }`}
+                                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${active
+                                      ? isDark
+                                        ? "border-emerald-400 bg-emerald-900/30 text-emerald-100"
+                                        : "border-emerald-400 bg-emerald-50 text-emerald-700"
+                                      : isDark
+                                        ? "border-slate-700 bg-slate-800 text-slate-200 hover:border-emerald-300"
+                                        : "border-slate-200 bg-white text-slate-700 hover:border-emerald-200"
+                                    }`}
                                 >
                                   {tag}
                                 </button>
@@ -401,7 +487,7 @@ export default function ProfilePage() {
                           </div>
                         </div>
 
-                        {saveError && <p className="text-sm text-rose-700">{saveError}</p>}
+                        {saveError && <p className={`text-sm ${isDark ? "text-rose-200" : "text-rose-700"}`}>{saveError}</p>}
 
                         <div className="flex flex-wrap items-center gap-3">
                           <button
@@ -484,7 +570,7 @@ export default function ProfilePage() {
                               setDraft(null);
                               setSaveError(null);
                             }}
-                            className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-800 hover:border-slate-300 disabled:opacity-60"
+                            className={`${secondaryButtonClass} disabled:opacity-60`}
                           >
                             Cancel
                           </button>
@@ -493,31 +579,61 @@ export default function ProfilePage() {
                     ) : (
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-3">
-                          <Field label="Agent" value={item.agent?.name || ""} />
-                          <Field label="Location/Region" value={item.countryRegion || item.agent?.location || ""} />
-                          <Field label="LinkedIn" value={item.agent?.linkedin || ""} />
                           <Field
-                            label="Phone"
-                            value={formatPhone(item.agent?.phoneCountryCode || "", item.agent?.phone || "")}
+                            label="Agent"
+                            value={item.agent?.name || ""}
+                            labelClassName={smallLabelClass}
+                            valueClassName={fieldValueClass}
                           />
-                          <Chips label="Area tags" tags={Array.isArray(item.focusTags) ? item.focusTags : []} />
+                          <Field
+                            label="Country/Region"
+                            value={item.countryRegion || item.agent?.location || ""}
+                            labelClassName={smallLabelClass}
+                            valueClassName={fieldValueClass}
+                          />
+                          <Field
+                            label="LinkedIn profile"
+                            value={item.agent?.linkedin || ""}
+                            labelClassName={smallLabelClass}
+                            valueClassName={fieldValueClass}
+                          />
+                          <Field
+                            label="Mobile phone"
+                            value={formatPhone(item.agent?.phoneCountryCode || "", item.agent?.phone || "")}
+                            labelClassName={smallLabelClass}
+                            valueClassName={fieldValueClass}
+                          />
+                          <Chips
+                            label="Focus areas"
+                            tags={Array.isArray(item.focusTags) ? item.focusTags : []}
+                            labelClassName={smallLabelClass}
+                            chipClassName={chipClass}
+                          />
                         </div>
                         <div className="space-y-3">
-                          <Field label="Rating" value={`${item.rating}/5`} />
+                          <Field
+                            label="Rating"
+                            value={`${item.rating}/5`}
+                            labelClassName={smallLabelClass}
+                            valueClassName={fieldValueClass}
+                          />
                           <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                              Comment
-                            </p>
-                            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-900">{item.notes.trim() || "-"}</p>
+                            <p className={smallLabelClass}>Comment</p>
+                            <p className={`mt-1 whitespace-pre-wrap text-sm ${headingTextClass}`}>{item.notes.trim() || "-"}</p>
                           </div>
-                          <Chips label="Quick tags" tags={Array.isArray(item.quickTags) ? item.quickTags : []} />
+                          <Chips
+                            label="Tags"
+                            tags={Array.isArray(item.quickTags) ? item.quickTags : []}
+                            labelClassName={smallLabelClass}
+                            chipClassName={chipClass}
+                          />
                         </div>
                       </div>
                     )}
 
                     {editingIndex !== idx && (
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs text-slate-600">
+                        <p className={`text-xs ${mutedTextClass}`}>
                           {item.agentId} · {item.createdAt}
                         </p>
                         <div className="flex items-center gap-3">
@@ -538,7 +654,7 @@ export default function ProfilePage() {
                               setSaveError(null);
                               setDeleteError(null);
                             }}
-                            className="text-xs font-semibold underline underline-offset-4 text-slate-600 hover:text-slate-900"
+                            className={`text-xs font-semibold underline underline-offset-4 ${isDark ? "text-slate-300 hover:text-slate-100" : "text-slate-600 hover:text-slate-900"}`}
                           >
                             Edit
                           </button>
@@ -560,7 +676,9 @@ export default function ProfilePage() {
                                 setDeleteError(err instanceof Error ? err.message : "Failed to delete");
                               }
                             }}
-                            className="text-xs font-semibold underline underline-offset-4 text-rose-700 hover:text-rose-800"
+                            className={`text-xs font-semibold underline underline-offset-4 ${
+                              isDark ? "text-rose-200 hover:text-rose-100" : "text-rose-700 hover:text-rose-800"
+                            }`}
                           >
                             Delete
                           </button>
@@ -568,7 +686,7 @@ export default function ProfilePage() {
                       </div>
                     )}
                     {editingIndex !== idx && deleteError && (
-                      <p className="text-sm text-rose-700">{deleteError}</p>
+                      <p className={`text-sm ${isDark ? "text-rose-200" : "text-rose-700"}`}>{deleteError}</p>
                     )}
                   </div>
                 </details>
@@ -578,10 +696,10 @@ export default function ProfilePage() {
         </section>
 
         {user && submissions.length > 0 && (
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-sm font-semibold text-slate-900">Export</h2>
-            <p className="mt-2 text-sm text-slate-600">Copy/paste this JSON if you want to analyze it elsewhere.</p>
-            <pre className="mt-3 max-h-[360px] overflow-auto rounded-xl bg-slate-900 p-3 text-xs text-slate-100">
+          <section className={panelClass}>
+            <h2 className={`text-sm font-semibold ${headingTextClass}`}>Export</h2>
+            <p className={`mt-2 text-sm ${mutedTextClass}`}>Copy/paste this JSON if you want to analyze it elsewhere.</p>
+            <pre className={`mt-3 max-h-[360px] overflow-auto rounded-xl p-3 text-xs text-slate-100 ${isDark ? "bg-slate-950" : "bg-slate-900"}`}>
               {exportJson}
             </pre>
           </section>
